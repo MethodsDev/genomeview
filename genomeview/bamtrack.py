@@ -18,13 +18,13 @@ def color_by_strand(interval):
     # brightness = 0.2 + (cur_reads[0].mapq/40.0*0.8)
 
     if interval.strand == "-":
-        color = "red"
+        color = "#8C8FCE"
         if interval.read.is_secondary:
-            color = "pink"
+            color = "#8CB0CE"
     else:
-        color = "purple"
+        color = "#E89E9D"
         if interval.read.is_secondary:
-            color = "blue"
+            color = "#E8C49D"
     return color
     
 class SingleEndBAMTrack(IntervalTrack):
@@ -81,7 +81,7 @@ class SingleEndBAMTrack(IntervalTrack):
         self.draw_read_labels = False
 
         self.include_read_fn = allreads
-        # self.color_fn = color_by_strand
+        self.color_fn = color_by_strand
         
     def fetch(self):
         """
@@ -254,7 +254,7 @@ class SingleEndBAMTrack(IntervalTrack):
         draw mismatches/insertions/deletions and clipping
         """
         read = interval.read
-        if read.is_secondary: return
+        # if read.is_secondary: return ## here
         
         # min_width = 2
 
@@ -267,7 +267,7 @@ class SingleEndBAMTrack(IntervalTrack):
 
         for code, length in read.cigartuples:
             length = int(length)
-            if code == 0: #"M":
+            if code == 0 and alnseq is not None: #"M":
                 yield from self._draw_mismatch(renderer, length, genome_position, sequence_position, yoffset, alnseq)
 
                 sequence_position += length
