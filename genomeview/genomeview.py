@@ -205,7 +205,7 @@ class Scale:
         dist = genomic_size / float(self.bases_per_pixel)
         return dist
     
-    def get_seq(self, start=None, end=None, strand="+"):
+    def get_seq(self, start=None, end=None, strand=None):
         """
         Gets the nucleotide sequence of an interval. By default, returns the 
         sequence for the current genomic interval.
@@ -213,6 +213,8 @@ class Scale:
         self._setup()
 
         assert self.source is not None
+        if strand is not None and strand != self.strand:
+            raise Exception("ack")
 
         if start is None:
             start = self.start
@@ -226,8 +228,6 @@ class Scale:
             self._seq = self.source.get_seq(self.chrom, self.start, self.end, self.strand).upper()
 
         cur_seq = self._seq[start-self.start:end-self.start]
-        if strand != self.strand:
-            raise Exception("ack")
 
         return cur_seq
 

@@ -89,7 +89,7 @@ def fetch(path, chrom, start, end, field_defs=None):
     except ImportError:
         logging.warn("Unable to import pyBigWig")
     except:
-        raise
+        # raise
         pass
 
     try:
