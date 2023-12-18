@@ -273,7 +273,6 @@ class SvgSplitter:
     
         else:
             new_bin = {'elements': [], 'min_y': y_range[0], 'max_y': y_range[0] + max_height}
-            # new_interval = Interval(y_range[0], y_range[1] + max_height, new_bin)
             new_binterval = Interval(y_range[0], y_range[0] + max_height - 0.01, new_bin)
             bins_tree.add(new_binterval)
             return [new_binterval]
@@ -287,7 +286,7 @@ class SvgSplitter:
         for element in elements:
             if self.is_defs(element):
                 defs_elements.append(element)
-                current_bin = None  # Reset current bin for elements following 'defs'
+                current_bins = None  # Reset current bin for elements following 'defs'
                 continue
 
             # For 'path' elements
@@ -313,9 +312,9 @@ class SvgSplitter:
                     initial_intron_line = element
                 elif self.is_text(element):
                     y_range = self.get_text_y_range(element)
-                    bins_for_text = self.find_or_create_binterval(y_range, bins_tree, max_height).data
+                    bins_for_text = self.find_or_create_binterval(y_range, bins_tree, max_height)
                     for bin_for_text in bins_for_text:
-                        bin_for_text['elements'].append(element)
+                        bin_for_text.data['elements'].append(element)
 
         # Convert IntervalTree to list of bins
         bins = [interval.data for interval in sorted(bins_tree)]
@@ -373,34 +372,21 @@ class SvgSplitter:
                     
                     elements = list(child_element)
                     bins = self.create_bins(elements, max_height)
-                    # print("generated " + str(len(bins)) + " bins")
+                    
                     for bin in bins:
                         new_svg = self.get_new_svg_split()
                         new_svg.attrib['height'] = str(bin['max_y'] - bin['min_y'])
-                        if bin == bins[0]:
-                            y_offset = math.inf
-                            y_trim = -math.inf
-                            for elem in bin['elements']:
-                                current_min_y = self.get_element_min_y(elem)
-                                if current_min_y and current_min_y < y_offset:
-                                    y_offset = current_min_y
-                                current_max_y = self.get_element_max_y(elem)
-                                if current_max_y and current_max_y > y_trim:
-                                    y_trim = current_max_y
-                            # print("first bin offset = ", str(y_offset))
-                            # print("first bin trim at = ", str(y_trim))
-                            new_svg.attrib['height'] = str(y_trim - y_offset)
-                        else:
-                            y_offset = bin['min_y']
-                            # print("next bin offset = ", str(y_offset))
-                        if bin == bins[-1]:
-                            y_trim = -math.inf
-                            for elem in bin['elements']:
-                                current_y = self.get_element_max_y(elem)
-                                if current_y and current_y > y_trim:
-                                    y_trim = current_y
-                            # print("last bin trim at = ", str(y_trim))
-                            new_svg.attrib['height'] = str(y_trim - y_offset + 10)
+                        #if bin == bins[0]:
+                        y_offset = math.inf
+                        y_trim = -math.inf
+                        for elem in bin['elements']:
+                            current_min_y = self.get_element_min_y(elem)
+                            if current_min_y and current_min_y < y_offset:
+                                y_offset = current_min_y
+                            current_max_y = self.get_element_max_y(elem)
+                            if current_max_y and current_max_y > y_trim:
+                                y_trim = current_max_y
+                        new_svg.attrib['height'] = str(y_trim - y_offset)
                         for elem in bin['elements']:
                             # need to subtract min_y from all height/y coordinates
                             self.offset_y(elem, y_offset)
