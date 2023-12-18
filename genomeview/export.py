@@ -238,9 +238,9 @@ class SvgSplitter:
 
     def find_or_create_binterval(self, y_range, bins_tree, max_height):
         # Search for overlapping bins
-        overlapping_bins = bins_tree.at(y_range[0])
-        if len(overlapping_bins) == 1:
-            return list(overlapping_bins)[0]
+        overlapping_bins = bins_tree.overlap(y_range[0], y_range[1])
+        if len(overlapping_bins) == 1 or len(overlapping_bins) == 2:
+            return list(overlapping_bins)
 
         if len(bins_tree) >= 1:
             current_binterval = sorted(bins_tree)[0]
@@ -255,7 +255,8 @@ class SvgSplitter:
                     else:
                         current_binterval = list(previous_binterval)[0]
                     if current_binterval.begin < y_range[0] < current_binterval.end:
-                        return current_binterval
+                        # return [current_binterval]
+                        return list(bins_tree.overlap(y_range[0], y_range[1]))
             else:
                 while True:
                     next_binterval = bins_tree.at(current_binterval.end + 1)
@@ -267,19 +268,20 @@ class SvgSplitter:
                     else:
                         current_binterval = list(next_binterval)[0]
                     if current_binterval.begin <= y_range[0] < current_binterval.end:
-                        return current_binterval
+                        # return [current_binterval]
+                        return list(bins_tree.overlap(y_range[0], y_range[1]))
     
         else:
             new_bin = {'elements': [], 'min_y': y_range[0], 'max_y': y_range[0] + max_height}
             # new_interval = Interval(y_range[0], y_range[1] + max_height, new_bin)
             new_binterval = Interval(y_range[0], y_range[0] + max_height - 0.01, new_bin)
             bins_tree.add(new_binterval)
-            return new_binterval
+            return [new_binterval]
 
     def create_bins(self, elements, max_height):
         bins_tree = IntervalTree()
         defs_elements = []
-        current_bin = None
+        current_bins = None
         initial_intron_line = None
 
         for element in elements:
@@ -292,24 +294,28 @@ class SvgSplitter:
             if self.is_path(element):
                 y_range = self.get_path_y_range(element)
 
-                current_binterval = self.find_or_create_binterval(y_range, bins_tree, max_height)
-                current_bin = current_binterval.data
+                current_bintervals = self.find_or_create_binterval(y_range, bins_tree, max_height)
+                current_bins = []
+                for current_binterval in current_bintervals:
+                    current_bins.append(current_binterval.data)
 
                 if initial_intron_line:
                     current_bin['elements'].append(initial_intron_line)
                     initial_intron_line = None
 
             # Add element to the current bin
-            if current_bin is not None:
-                current_bin['elements'].append(element)
+            if current_bins:
+                for current_bin in current_bins:
+                    current_bin['elements'].append(element)
             else:
                 # Handle 'text' elements following 'defs' elements
                 if self.is_line(element):
                     initial_intron_line = element
                 elif self.is_text(element):
                     y_range = self.get_text_y_range(element)
-                    bin_for_text = self.find_or_create_binterval(y_range, bins_tree, max_height).data
-                    bin_for_text['elements'].append(element)
+                    bins_for_text = self.find_or_create_binterval(y_range, bins_tree, max_height).data
+                    for bin_for_text in bins_for_text:
+                        bin_for_text['elements'].append(element)
 
         # Convert IntervalTree to list of bins
         bins = [interval.data for interval in sorted(bins_tree)]
@@ -342,15 +348,24 @@ class SvgSplitter:
             elif child_element_height < max_height:
                 # finish previous part and start new one with this
                 self.split_svgs.append(ET.ElementTree(current_split))
-    
+
                 current_split = self.get_new_svg_split()
                 current_split.append(child_element)
-                current_split.attrib['height'] = str(float(current_split.attrib['height']) + child_element_height + 10) # +10 because there is a 10 between each group at the same level
+                current_split.attrib['height'] = str(child_element_height + 10) # +10 because there is a 10 between each group at the same level
+
+                y_offset = math.inf
+                for elem in current_split.iter():
+                    current_min_y = self.get_element_min_y(elem)
+                    if current_min_y and current_min_y < y_offset:
+                        y_offset = current_min_y
+                for elem in current_split.iter():
+                    self.offset_y(elem, y_offset)
+                
             else:  # needs to be split somehow, adding however much can be added first, then make new splits with the rest
                 # add this level branch
                 if self.has_children(child_element):
                     # go deeper
-                    self.split_svg(child_element, current_split, max_height, root = False)
+                    current_split = self.split_svg(child_element, current_split, max_height, root = False)
                     # update the height of this, maybe do at the end of the whole recursion instead
                 # below here, can probable close the split after this element is processed before going further to make subsections easier to handle
                 elif self.is_read_block(child_element):
@@ -394,6 +409,7 @@ class SvgSplitter:
                     current_split = None
         if root and current_split:
             self.split_svgs.append(ET.ElementTree(current_split))
+        return current_split
 
     def offset_y(self, element, offset):
         if self.is_path(element):
@@ -422,7 +438,6 @@ class SvgSplitter:
     
     def offset_text_y(self, element, offset):
         element.attrib['y'] = str(float(element.attrib['y']) - offset)
-
 
 
 def convert_svg(inpath, outpath, outformat):
