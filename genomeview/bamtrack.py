@@ -65,7 +65,7 @@ class SingleEndBAMTrack(IntervalTrack):
         self.intervals = self
         self.mismatch_counts = None
         
-        self.nuc_colors = {"A":"blue", "C":"orange", "G":"green", "T":"black", "N":"gray"}
+        self.nuc_colors = {"A":"blue", "C":"red", "G":"green", "T":"black", "N":"gray"}
         self.insertion_color = "purple"
         self.clipping_color = "cyan"
         self.deletion_color = "cyan"
@@ -499,6 +499,8 @@ class BAMCoverageTrack(GraphTrack):
         counts = collections.defaultdict(int)
         
         for read in self.bam.fetch(chrom, scale.start, scale.end):
+            if read.is_secondary:
+                continue
             for i in read.get_reference_positions():
                 counts[i] += 1
         
