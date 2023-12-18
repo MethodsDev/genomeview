@@ -72,7 +72,7 @@ class SingleEndBAMTrack(IntervalTrack):
 
         self.quick_consensus = True
         self.draw_mismatches = True
-        self.include_secondary = True
+        self.include_secondary = False
 
         self.min_indel_size = 0
         self.min_insertion_label_size = 5
@@ -488,6 +488,7 @@ class BAMCoverageTrack(GraphTrack):
         
         self.bam_path = bam_path
         self.bam = pysam.AlignmentFile(bam_path)
+        self.include_secondary = False
         
     def layout(self, scale):
         import numpy as np
@@ -499,8 +500,7 @@ class BAMCoverageTrack(GraphTrack):
         counts = collections.defaultdict(int)
         
         for read in self.bam.fetch(chrom, scale.start, scale.end):
-            if read.is_secondary:
-                continue
+            if read.is_secondary and not self.include_secondary: continue
             for i in read.get_reference_positions():
                 counts[i] += 1
         
