@@ -240,7 +240,7 @@ class SvgSplitter:
         # Search for overlapping bins
         overlapping_bins = bins_tree.overlap(y_range[0], y_range[1])
         if len(overlapping_bins) == 1:
-            return list(overlapping_bins)
+            return list(overlapping_bins)[0]
         elif len(overlapping_bins) == 2:
             overlapping_bins = list(sorted(overlapping_bins))
             overlapping_bins[0].data['max_y'] = y_range[1]
@@ -250,7 +250,7 @@ class SvgSplitter:
             overlapping_bins[1].data['min_y'] = y_range[0] + 0.01
             bins_tree.remove(overlapping_bins[1])
             bins_tree.add(Interval(y_range[0] + 0.01, overlapping_bins[1].end, overlapping_bins[1].data))
-            return [to_return]
+            return to_return
 
         if len(bins_tree) >= 1:
             current_binterval = sorted(bins_tree)[0]
@@ -265,8 +265,7 @@ class SvgSplitter:
                     else:
                         current_binterval = list(previous_binterval)[0]
                     if current_binterval.begin < y_range[0] < current_binterval.end:
-                        # return [current_binterval]
-                        return list(bins_tree.overlap(y_range[0], y_range[1]))
+                        return list(bins_tree.overlap(y_range[0], y_range[1]))[0]
             else:
                 while True:
                     next_binterval = bins_tree.at(current_binterval.end + 1)
@@ -278,61 +277,47 @@ class SvgSplitter:
                     else:
                         current_binterval = list(next_binterval)[0]
                     if current_binterval.begin <= y_range[0] < current_binterval.end:
-                        # return [current_binterval]
-                        return list(bins_tree.overlap(y_range[0], y_range[1]))
+                        return list(bins_tree.overlap(y_range[0], y_range[1]))[0]
     
         else:
             new_bin = {'elements': [], 'min_y': y_range[0], 'max_y': y_range[0] + max_height}
             new_binterval = Interval(y_range[0], y_range[0] + max_height - 0.01, new_bin)
             bins_tree.add(new_binterval)
-            return [new_binterval]
+            return new_binterval
 
     def create_bins(self, elements, max_height):
         bins_tree = IntervalTree()
         defs_elements = []
-        current_bins = None
+        current_bin = None
         initial_intron_line = None
 
         for element in elements:
             if self.is_defs(element):
                 defs_elements.append(element)
-                current_bins = None  # Reset current bin for elements following 'defs'
+                current_bin = None  # Reset current bin for elements following 'defs'
                 continue
 
             # For 'path' elements
             if self.is_path(element):
                 y_range = self.get_path_y_range(element)
 
-                current_bintervals = self.find_or_create_binterval(y_range, bins_tree, max_height)
-
-                current_bins = []
-                for current_binterval in current_bintervals:
-                    current_bins.append(current_binterval.data)
+                current_bin = self.find_or_create_binterval(y_range, bins_tree, max_height).data
 
                 if initial_intron_line:
                     current_bin['elements'].append(initial_intron_line)
                     initial_intron_line = None
 
             # Add element to the current bin
-            if current_bins:
-                current_bins[0]['elements'].append(element)
-                if len(current_bins) == 2:
-                    current_bins[1]['elements'].append(copy.deepcopy(element))
-                #for current_bin in current_bins:
-                #    current_bin['elements'].append(element)
+            if current_bin:
+                current_bin['elements'].append(element)
             else:
                 # Handle 'text' elements following 'defs' elements
                 if self.is_line(element):
                     initial_intron_line = element
                 elif self.is_text(element):
                     y_range = self.get_text_y_range(element)
-                    bins_for_text = self.find_or_create_binterval(y_range, bins_tree, max_height)
-                    bins_for_text[0].data['elements'].append(element)
-                    if len(bins_for_text) == 2:
-                        bins_for_text[1].data['elements'].append(copy.deepcopy(element))
-                    
-                    #for bin_for_text in bins_for_text:
-                    #    bin_for_text.data['elements'].append(element)
+                    bin_for_text = self.find_or_create_binterval(y_range, bins_tree, max_height).data
+                    bin_for_text['elements'].append(element)
 
         # Convert IntervalTree to list of bins
         bins = [interval.data for interval in sorted(bins_tree)]
