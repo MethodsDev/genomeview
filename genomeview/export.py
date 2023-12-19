@@ -239,8 +239,18 @@ class SvgSplitter:
     def find_or_create_binterval(self, y_range, bins_tree, max_height):
         # Search for overlapping bins
         overlapping_bins = bins_tree.overlap(y_range[0], y_range[1])
-        if len(overlapping_bins) == 1 or len(overlapping_bins) == 2:
+        if len(overlapping_bins) == 1:
             return list(overlapping_bins)
+        elif len(overlapping_bins) == 2:
+            overlapping_bins = list(sorted(overlapping_bins))
+            overlapping_bins[0].data['max_y'] = y_range[1]
+            bins_tree.remove(overlapping_bins[0])
+            to_return = Interval(overlapping_bins[0].begin, y_range[1], overlapping_bins[0].data)
+            bins_tree.add(to_return)
+            overlapping_bins[1].data['min_y'] = y_range[0] + 0.01
+            bins_tree.remove(overlapping_bins[1])
+            bins_tree.add(Interval(y_range[0] + 0.01, overlapping_bins[1].end, overlapping_bins[1].data))
+            return [to_return]
 
         if len(bins_tree) >= 1:
             current_binterval = sorted(bins_tree)[0]
@@ -294,6 +304,7 @@ class SvgSplitter:
                 y_range = self.get_path_y_range(element)
 
                 current_bintervals = self.find_or_create_binterval(y_range, bins_tree, max_height)
+
                 current_bins = []
                 for current_binterval in current_bintervals:
                     current_bins.append(current_binterval.data)
@@ -304,8 +315,11 @@ class SvgSplitter:
 
             # Add element to the current bin
             if current_bins:
-                for current_bin in current_bins:
-                    current_bin['elements'].append(element)
+                current_bins[0]['elements'].append(element)
+                if len(current_bins) == 2:
+                    current_bins[1]['elements'].append(copy.deepcopy(element))
+                #for current_bin in current_bins:
+                #    current_bin['elements'].append(element)
             else:
                 # Handle 'text' elements following 'defs' elements
                 if self.is_line(element):
@@ -313,8 +327,12 @@ class SvgSplitter:
                 elif self.is_text(element):
                     y_range = self.get_text_y_range(element)
                     bins_for_text = self.find_or_create_binterval(y_range, bins_tree, max_height)
-                    for bin_for_text in bins_for_text:
-                        bin_for_text.data['elements'].append(element)
+                    bins_for_text[0].data['elements'].append(element)
+                    if len(bins_for_text) == 2:
+                        bins_for_text[1].data['elements'].append(copy.deepcopy(element))
+                    
+                    #for bin_for_text in bins_for_text:
+                    #    bin_for_text.data['elements'].append(element)
 
         # Convert IntervalTree to list of bins
         bins = [interval.data for interval in sorted(bins_tree)]
@@ -372,10 +390,10 @@ class SvgSplitter:
                     
                     elements = list(child_element)
                     bins = self.create_bins(elements, max_height)
-                    
+
                     for bin in bins:
                         new_svg = self.get_new_svg_split()
-                        new_svg.attrib['height'] = str(bin['max_y'] - bin['min_y'])
+                        new_svg.attrib['height'] = str(bin['max_y'] - bin['min_y'] + 0.01)
                         #if bin == bins[0]:
                         y_offset = math.inf
                         y_trim = -math.inf
