@@ -162,7 +162,8 @@ class Configuration():
     def add_single_view_row_to_plot(self, doc, bams_list, 
                                     interval = None, 
                                     data = None, 
-                                    padding_perc = 0.1, 
+                                    padding_perc = 0.1,
+                                    with_coverage = True,
                                     with_TSS=True, 
                                     include_secondary = False,
                                     tighter_track = False):
@@ -180,19 +181,22 @@ class Configuration():
             raise("Neither an Interval or data structure has been provided.")
 
         row = self.make_genomeview_row(start, end, chrom, strand, bams_list, 
-                                  padding_perc = padding_perc, 
-                                  with_TSS = with_TSS, 
-                                  include_secondary = include_secondary,
-                                  row = None, 
-                                  tighter_track = tighter_track)
+                                       padding_perc = padding_perc, 
+                                       with_coverage = with_coverage,
+                                       with_TSS = with_TSS, 
+                                       include_secondary = include_secondary,
+                                       row = None, 
+                                       tighter_track = tighter_track)
         doc.elements.append(row)
         return doc
 
 
     def add_multi_view_row_to_plot(self, doc, bams_list, 
                                    interval_list = None, 
-                                   data_list = None, 
-                                   with_TSS=True, 
+                                   data_list = None,
+                                   padding_perc = 0.1,
+                                   with_coverage = True,
+                                   with_TSS = True, 
                                    include_secondary = False,
                                    tighter_track = False):
         row = genomeview.ViewRow("row")
@@ -205,11 +209,12 @@ class Configuration():
                 end  = interval.end
                 
                 self.make_genomeview_row(start, end, chrom, strand, bams_list, 
-                                    padding_perc = padding_perc, 
-                                    with_TSS = with_TSS, 
-                                    include_secondary = include_secondary,
-                                    row = row, 
-                                    tighter_track = tighter_track)
+                                         padding_perc = padding_perc, 
+                                         with_coverage = with_coverage,
+                                         with_TSS = with_TSS, 
+                                         include_secondary = include_secondary,
+                                         row = row, 
+                                         tighter_track = tighter_track)
         elif data_list is not None:
             for data in data_list:
                 chrom = data[2]
@@ -218,11 +223,12 @@ class Configuration():
                 end = data[1].end
                 
                 self.make_genomeview_row(start, end, chrom, strand, bams_list, 
-                                    padding_perc = padding_perc, 
-                                    with_TSS = with_TSS, 
-                                    include_secondary = include_secondary,
-                                    row = row, 
-                                    tighter_track = tighter_track)
+                                         padding_perc = padding_perc,
+                                         with_coverage = with_coverage,
+                                         with_TSS = with_TSS, 
+                                         include_secondary = include_secondary,
+                                         row = row, 
+                                         tighter_track = tighter_track)
         doc.elements.append(row)
         return doc
 
@@ -230,7 +236,8 @@ class Configuration():
     def plot_interval(self, bams_list, 
                       interval = None, 
                       data = None, 
-                      padding_perc = 0.1, 
+                      padding_perc = 0.1,
+                      with_coverage = True,
                       with_TSS = True, 
                       include_secondary = False,
                       view_width = 1600, 
@@ -239,7 +246,8 @@ class Configuration():
         return self.add_single_view_row_to_plot(doc, bams_list, 
                                            interval = interval, 
                                            data = data, 
-                                           padding_perc = padding_perc, 
+                                           padding_perc = padding_perc,
+                                           with_coverage = with_coverage,
                                            with_TSS = with_TSS, 
                                            include_secondary = include_secondary,
                                            tighter_track = tighter_track)
@@ -249,7 +257,8 @@ class Configuration():
                        interval_list = None, 
                        data_list = None, 
                        N_per_row = 1, 
-                       padding_perc = 0.1, 
+                       padding_perc = 0.1,
+                       with_coverage = True,
                        with_TSS = True, 
                        include_secondary = False,
                        view_width = 1600):
@@ -258,33 +267,37 @@ class Configuration():
         if interval_list is not None:
             for i in range(0, len(interval_list), N_per_row):  
                 doc = self.add_multi_view_row_to_plot(doc, bams_list, 
-                                                 interval = interval_list[i:i+N_per_row], 
-                                                 data = None, 
-                                                 padding_perc = padding_perc, 
-                                                 with_TSS = with_TSS, 
-                                                 include_secondary = include_secondary,
-                                                 tighter_track = tighter_track)
+                                                      interval = interval_list[i:i+N_per_row], 
+                                                      data = None, 
+                                                      padding_perc = padding_perc,
+                                                      with_coverage = with_coverage,
+                                                      with_TSS = with_TSS, 
+                                                      include_secondary = include_secondary,
+                                                      tighter_track = tighter_track)
         elif data_list is not None:
             for i in range(0, len(data_list), N_per_row):  
                 doc = self.add_multi_view_row_to_plot(doc, bams_list, 
-                                                 interval = None, 
-                                                 data = data_list[i:i+N_per_row], 
-                                                 padding_perc = padding_perc, 
-                                                 with_TSS = with_TSS, 
-                                                 include_secondary = include_secondary,
-                                                 tighter_track = tighter_track)
+                                                      interval = None, 
+                                                      data = data_list[i:i+N_per_row], 
+                                                      padding_perc = padding_perc, 
+                                                      with_coverage = with_coverage,
+                                                      with_TSS = with_TSS, 
+                                                      include_secondary = include_secondary,
+                                                      tighter_track = tighter_track)
         return doc
 
 
     def plot_feature(self, feature, bams_list, 
-                     padding_perc = 0.1, 
-                     with_TSS = True, 
+                     padding_perc = 0.1,
+                     with_coverage = True,
+                     with_TSS = True,
                      include_secondary = False,
                      view_width = 1600, 
                      squish_reads = False):
         return self.plot_interval(bams_list, 
                                   interval = self.id_to_coordinates[feature], 
-                                  padding_perc = padding_perc, 
+                                  padding_perc = padding_perc,
+                                  with_coverage = with_coverage,
                                   with_TSS = with_TSS, 
                                   include_secondary = include_secondary,
                                   view_width = view_width, 
