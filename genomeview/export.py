@@ -152,12 +152,13 @@ class SvgSplitter:
         return True if element.tag[-1] == "g" else False
  
     def has_children(self, element):
-        for el in element.iter():
-            if el == element:
-                continue
-            if self.is_clipPath(el):  # or self.is_g(el):
-                return True
-        return False
+        return element.find("*")
+        # for el in element.iter():
+        #     if el == element:
+        #         continue
+        #     if self.is_clipPath(el):  # or self.is_g(el):
+        #         return True
+        # return False
    
     def get_path_max_y(self, element):
         max_y = 0
@@ -221,6 +222,7 @@ class SvgSplitter:
             return self.get_rect_y_range(element)[0]
         elif self.is_text(element):
             return self.get_text_y_range(element)[0]
+        return math.inf
         # elif self.is_line(element):
         #     return self.get_line_y(element)
         # elif self.is_defs(element):
@@ -233,8 +235,23 @@ class SvgSplitter:
             return self.get_rect_y_range(element)[1]
         elif self.is_text(element):
             return self.get_text_y_range(element)[1]
+        return -math.inf
         # elif self.is_line(element):
         #     return self.get_line_y(element)
+
+    def get_element_min_y_rec(self, element):
+        current_min = math.inf
+        for sub_element in element:
+            current_min = min(current_min, self.get_element_min_y_rec(sub_element))
+        return min(current_min, self.get_element_min_y(element))
+
+
+    def get_element_max_y_rec(self, element):
+        current_max = -math.inf
+        for sub_element in element:
+            current_max = max(current_max, self.get_element_max_y_rec(sub_element))
+        return max(current_max, self.get_element_max_y(element))
+
 
     def find_or_create_binterval(self, y_range, bins_tree, max_height):
         # Search for overlapping bins
@@ -331,10 +348,10 @@ class SvgSplitter:
     def split_svg(self, current_element, current_split = None, max_height = 32000, current_height = 0, root = True):
         last_clip_path_height = 0
         
-        if not current_split:
-            current_split = self.get_new_svg_split()
-        
         for child_element in current_element:
+            if current_split is None:
+                current_split = self.get_new_svg_split()
+            
             if child_element.tag.endswith('clipPath'):
                 last_clip_path_height = float(child_element.find('.//{http://www.w3.org/2000/svg}rect').attrib['height'])
                 continue
@@ -349,7 +366,15 @@ class SvgSplitter:
                 current_split.attrib['height'] = str(float(current_split.attrib['height']) + child_element_height + 10) # +10 because there is a 10 between each group at the same level
             elif child_element_height < max_height:
                 # finish previous part and start new one with this
-                self.split_svgs.append(ET.ElementTree(current_split))
+                if self.has_children(current_split):
+                    # need to add offsetting of everything inside like is done in the loop over bins
+                    y_offset = self.get_element_min_y_rec(current_split)
+                    y_trim = self.get_element_max_y_rec(current_split)
+
+                    current_split.attrib['height'] = str(y_trim - y_offset)
+                    # need to subtract min_y from all height/y coordinates
+                    self.offset_y_rec(current_split, y_offset)
+                    self.split_svgs.append(ET.ElementTree(current_split))
 
                 current_split = self.get_new_svg_split()
                 current_split.append(child_element)
@@ -371,8 +396,16 @@ class SvgSplitter:
                     # update the height of this, maybe do at the end of the whole recursion instead
                 # below here, can probable close the split after this element is processed before going further to make subsections easier to handle
                 elif self.is_read_block(child_element):
-                    self.split_svgs.append(ET.ElementTree(current_split))
-                    
+                    if self.has_children(current_split):
+                        # need to add offsetting of everything inside like is done in the loop over bins
+                        y_offset = self.get_element_min_y_rec(current_split)
+                        y_trim = self.get_element_max_y_rec(current_split)
+
+                        current_split.attrib['height'] = str(y_trim - y_offset)
+                        # need to subtract min_y from all height/y coordinates
+                        self.offset_y_rec(current_split, y_offset)
+                        self.split_svgs.append(ET.ElementTree(current_split))
+
                     elements = list(child_element)
                     bins = self.create_bins(elements, max_height)
 
@@ -383,12 +416,8 @@ class SvgSplitter:
                         y_offset = math.inf
                         y_trim = -math.inf
                         for elem in bin['elements']:
-                            current_min_y = self.get_element_min_y(elem)
-                            if current_min_y and current_min_y < y_offset:
-                                y_offset = current_min_y
-                            current_max_y = self.get_element_max_y(elem)
-                            if current_max_y and current_max_y > y_trim:
-                                y_trim = current_max_y
+                            y_offset = min(y_offset, self.get_element_min_y(elem))
+                            y_trim = max(y_trim, self.get_element_max_y(elem))
                         new_svg.attrib['height'] = str(y_trim - y_offset)
                         for elem in bin['elements']:
                             # need to subtract min_y from all height/y coordinates
@@ -396,7 +425,7 @@ class SvgSplitter:
                             new_svg.append(elem)
                         self.split_svgs.append(ET.ElementTree(new_svg))
                     current_split = None
-        if root and current_split:
+        if root and current_split and self.has_children(current_split):
             self.split_svgs.append(ET.ElementTree(current_split))
         return current_split
 
@@ -410,6 +439,11 @@ class SvgSplitter:
         elif self.is_text(element):
             self.offset_text_y(element, offset)
         # self.is_defs(element) doesn't need updating
+
+    def offset_y_rec(self, element, offset):
+        for sub_element in element:
+            self.offset_y_rec(sub_element, offset)
+        self.offset_y(element, offset)
 
     def offset_path_y(self, element, offset):
         groups = element.attrib['d'].split(" ")
