@@ -1,7 +1,10 @@
 import collections
-
+from cairosvg import svg2png
+import xml.etree.ElementTree as ET
+import ipywidgets as widgets
 
 from genomeview.svg import Renderer, SVG
+from genomeview.export import SvgSplitter
 
 
 class Document:
@@ -61,6 +64,28 @@ class Document:
         
     def _repr_svg_(self):
         return "\n".join(self.render())
+
+    def get_images(self, format="svg"):
+        svg = self._repr_svg_()
+        if format == "svg":
+            return [svg]
+        else:  # "png"
+            root_svg = ET.fromstring(svg)
+            svg_splitter = SvgSplitter(root_svg)
+            svg_splitter.split_svg(root_svg, max_height = 10000)
+
+            pngs = []
+            for split_svg in svg_splitter.split_svgs:
+                pngs.append(svg2png(bytestring=ET.tostring(split_svg.getroot(), encoding='utf8')))
+            return pngs
+
+    def get_widget(self, format="png"):
+        if format == "png":
+            return widgets.VBox([widgets.Image(value=data, format=format) for data in self.get_images(format)])
+        else: # "svg"
+            return widgets.HTML(self._repr_svg_())
+
+
         
 class ViewRow:
     def __init__(self, name=None):
