@@ -87,7 +87,20 @@ def visualize_data(file_paths, chrom, start, end, reference_path=None,
 
 
 
-### newly added wrapper
+### newly added wrappers
+
+def get_regions_by_read_id(bam_file, read_id):
+    regions = []
+
+    with pysam.AlignmentFile(bam_file, "rb") as bam_in:
+        for read in bam_in.fetch():
+            if read.query_name != read_id:
+                continue
+
+            regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id)))
+
+    return(regions)
+
 
 class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
     def __init__(self, *args, **kwdargs):

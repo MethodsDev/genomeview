@@ -2,6 +2,7 @@ import collections
 from cairosvg import svg2png
 import xml.etree.ElementTree as ET
 import ipywidgets as widgets
+from ipywidgets.embed import embed_minimal_html, dependency_state
 
 from genomeview.svg import Renderer, SVG
 from genomeview.export import SvgSplitter
@@ -85,8 +86,11 @@ class Document:
         else: # "svg"
             return widgets.HTML(self._repr_svg_())
 
+    def save_html(self, out_path, format="png", title=""):
+        view = self.get_widget(format=format)
+        embed_minimal_html(out_path, views=view, state=dependency_state(view), title=title)
 
-        
+
 class ViewRow:
     def __init__(self, name=None):
         self.name = name
