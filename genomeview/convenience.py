@@ -3,6 +3,8 @@ import gzip
 import math
 import os
 import pysam
+import inspect
+import ipywidgets as widgets
 
 from intervaltree import Interval
 
@@ -315,6 +317,34 @@ class Configuration():
                                   include_secondary = include_secondary,
                                   view_width = view_width, 
                                   tighter_track = squish_reads)
+
+
+    def plot_read(self, read_id, bam, **kwargs):
+
+        regions = []
+
+        with pysam.AlignmentFile(bam, "rb") as bam_in:
+            for read in bam_in.fetch():
+                if read.query_name != read_id:
+                    continue
+                regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id)))
+            
+        if len(regions) == 0:
+            print("Error: read either not found or not aligned")
+            return -1
+
+        # Get the parameter names of plot_interval
+        params = inspect.signature(self.plot_interval).parameters
+
+        # Filter kwargs to only include keys that are in plot_interval's parameters
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
+
+        all_widgets = []
+        for region in regions:
+            all_widgets.append(self.plot_interval(bams_list={"bam": bam}, interval=region).get_widget(), **filtered_kwargs)
+
+        return widgets.VBox(all_widgets)
+
 
 
 
