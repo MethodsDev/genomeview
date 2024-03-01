@@ -11,7 +11,7 @@ from intervaltree import Interval, IntervalTree
 
 
 
-def save(doc, outpath, outformat=None):
+def save(doc, outpath, outformat=None, requested_converter=None):
     """
     Saves document `doc` to a file at `outpath`. By default, this file 
     will be in SVG format; if it ends with .pdf or .png, or if outformat
@@ -41,21 +41,44 @@ def save(doc, outpath, outformat=None):
     if outformat == "svg":
         with open(outpath, "w") as outf:
             render_to_file(doc, outf)
-    else:
-        # render to a temporary file then convert to PDF or PNG
-        with tempfile.TemporaryDirectory() as outdir:
-            temp_svg_path = os.path.join(outdir, "temp.svg")
-            with open(temp_svg_path, "w") as outf:
-                render_to_file(doc, outf)
 
-            tree = ET.parse(temp_svg_path)
-            root_svg = tree.getroot()
-            svg_splitter = svg_splitter(root_svg)
+    elif outformat == "png":
+        if outpath.lower().endswith(".png"):
+            outpath_prefix = outpath[:-4]
+        else:
+            outpath_prefix = outpath
+
+        if requested_converter is None or requested_converter == "resvg":
+            root_svg = ET.fromstring(doc._repr_svg_())
+            svg_splitter = SvgSplitter(root_svg)
             svg_splitter.split_svg(root_svg, max_height = 5000)
-            svg_slices = svg_splitter.write_splits(prefix=os.path.join(outdir, "temp_"))
+            for i, split in enumerate(svg_splitter.get_splits()):
+                split_png = _convertSVG_resvg_stdio(ET.tostring(split.getroot(), encoding='utf-8'))
+                filename = f"_p{i+1:02}.png"  # Zero-pad the number, adjust i+1 if numbering should start from 01
+                with open(outpath_prefix + filename, 'wb') as outf:
+                    outf.write(split_png)
 
-            for svg_slice in svg_slices:
-                convert_svg(svg_slice, outpath, outformat)
+        elif requested_converter == "librsvg":
+            # render to a temporary file then convert to PDF or PNG
+            with tempfile.TemporaryDirectory() as outdir:
+                temp_svg_path = os.path.join(outdir, "temp.svg")
+                with open(temp_svg_path, "w") as outf:
+                    render_to_file(doc, outf)
+    
+                tree = ET.parse(temp_svg_path)
+                root_svg = tree.getroot()
+                svg_splitter = svg_splitter(root_svg)
+                svg_splitter.split_svg(root_svg, max_height = 5000)
+                svg_slices = svg_splitter.write_splits(prefix=os.path.join(outdir, "temp_"))
+    
+                for i, split in enumerate(svg_splitter.get_splits()):
+                    filename = f"_p{i+1:02}.png"
+                    convert_svg(svg_slice, outpath_prefix + filename, outformat, requested_converter="librsvg")
+
+    else: # pdf
+        # do something
+        return
+
 
 
 
@@ -467,11 +490,13 @@ class SvgSplitter:
         element.attrib['y'] = str(float(element.attrib['y']) - offset)
 
 
-def convert_svg(inpath, outpath, outformat):
-    converter = _getExportConverter(outformat)
+def convert_svg(inpath, outpath, outformat, requested_converter=None):
+    converter = _getExportConverter(outformat, requested_converter=requested_converter)
 
     if converter == "webkittopdf":
         exportData = _convertSVG_webkitToPDF(inpath, outpath, outformat)
+    elif converter == "resvg":
+        exportData = _convertSVG_resvg(inpath, outpath)
     elif converter == "librsvg":
         exportData = _convertSVG_rsvg_convert(inpath, outpath, outformat)
     elif converter == "inkscape":
@@ -486,10 +511,10 @@ def _getExportConverter(exportFormat, requested_converter=None):
             "export to PDF")
         sys.exit(1)
 
-    if exportFormat == "png" and requested_converter is None:
-        return "librsvg"
+    if exportFormat == "png" and requested_converter in [None, "resvg"]:
+        return "resvg"
 
-    if requested_converter == "rsvg-convert":
+    if exportFormat == "png" and requested_converter == "rsvg-convert":
         return "librsvg"
 
     if requested_converter in [None, "webkittopdf"]:
@@ -530,6 +555,35 @@ def _checkInkscape():
     except subprocess.CalledProcessError:
         return False
 
+
+
+def _convertSVG_resvg(inpath, outpath):
+    try:
+        cmd = "resvg {} {}".format(inpath, outpath)
+        subprocess.check_call(cmd, shell=True)#, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError:
+        return None
+
+    return open(outpath, "rb").read()
+
+
+def _convertSVG_resvg_stdio(indata):
+    try:
+        if isinstance(indata, str):
+            indata = indata.encode('utf-8')
+
+        cmd = ["resvg", "--resources-dir", "./", "-", "-c"]
+        process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        outdata, errdata = process.communicate(indata)
+        if process.returncode != 0:
+            print(f"Error: {errdata.decode('utf-8')}")
+            return None
+
+        return outdata
+
+    except subprocess.CalledProcessError as e:
+        print(f"Subprocess failed with error {e}")
+        return None
 
 
 def _convertSVG_webkitToPDF(inpath, outpath, outformat):
