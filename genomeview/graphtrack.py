@@ -79,7 +79,7 @@ class GraphTrack(Track):
                 y2 = self.ytopixels(series.y[i+1])
                 
                 yield from renderer.line(x1, y1, x2, y2, 
-                    **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square"})
+                    **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
 
         # since the labels are drawn at the top of the ticks, let's make sure the top tick/label is 
         # more than 12 pixels from the top of the track so it doesn't get clipped
@@ -90,7 +90,7 @@ class GraphTrack(Track):
         ticks = numpy.linspace(self.min_y, axis_max_y, 4)
 
         yield from renderer.line(1, self.ytopixels(ticks[0]), 1, self.ytopixels(ticks[-1]), 
-                                 **{"stroke-width":2, "stroke":"gray", "stroke-linecap":"square"})
+                                 **{"stroke-width":2, "stroke":"gray", "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
         for tick in ticks:
             if self.max_y > 1_000:
                 label = "{:.1g}".format(tick)
@@ -101,7 +101,7 @@ class GraphTrack(Track):
 
             y = self.ytopixels(tick)
             yield from renderer.line(1, y, 10, y, 
-                                     **{"stroke-width":2, "stroke":"gray", "stroke-linecap":"square"})
+                                     **{"stroke-width":2, "stroke":"gray", "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
             yield from renderer.text(14, y, label, anchor="start", fill="gray")
             
         for x in self.render_label(renderer):

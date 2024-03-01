@@ -95,7 +95,8 @@ class SvgSplitter:
                 'version': root.attrib['version'],
                 'baseProfile': root.attrib['baseProfile'],
                 'width': root.attrib['width'],
-                'height': "0"
+                'height': "0",
+                'shape-rendering': "crispEdges"
                 # 'height': str(min(max_height, original_height - i * max_height)) #,
                 # 'xmlns': root.attrib['xmlns']
             })
@@ -120,6 +121,9 @@ class SvgSplitter:
             split_svg.write(f'{prefix}_slice_{i + 1}.svg')
             output_files.append(f'{prefix}_slice_{i + 1}.svg')
         return(output_files)
+
+    def get_splits(self):
+        return self.split_svgs
 
     def is_read_block(self, element):
         if self.has_children(element):

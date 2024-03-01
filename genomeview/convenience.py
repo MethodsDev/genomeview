@@ -108,7 +108,7 @@ class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
     def __init__(self, *args, **kwdargs):
         super().__init__(*args, **kwdargs)
         self.row_height = 3
-        self.margin_y = 1.5
+        self.margin_y = 2
 
 
 class Configuration():

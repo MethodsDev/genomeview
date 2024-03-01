@@ -9,7 +9,7 @@ from genomeview.export import SvgSplitter
 
 
 class Document:
-    header = """<svg version="1.1" baseProfile="full" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">"""
+    header = """<svg version="1.1" baseProfile="full" width="{width}" height="{height}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">"""
     footer = """</svg>"""
         
     def __init__(self, width):
