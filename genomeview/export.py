@@ -51,7 +51,7 @@ def save(doc, outpath, outformat=None, requested_converter=None):
         if requested_converter is None or requested_converter == "resvg":
             root_svg = ET.fromstring(doc._repr_svg_())
             svg_splitter = SvgSplitter(root_svg)
-            svg_splitter.split_svg(root_svg, max_height = 5000)
+            svg_splitter.split_svg(root_svg, max_height = 10000)
             for i, split in enumerate(svg_splitter.get_splits()):
                 split_png = _convertSVG_resvg_stdio(ET.tostring(split.getroot(), encoding='utf-8'))
                 filename = f"_p{i+1:02}.png"  # Zero-pad the number, adjust i+1 if numbering should start from 01
@@ -68,7 +68,7 @@ def save(doc, outpath, outformat=None, requested_converter=None):
                 tree = ET.parse(temp_svg_path)
                 root_svg = tree.getroot()
                 svg_splitter = svg_splitter(root_svg)
-                svg_splitter.split_svg(root_svg, max_height = 5000)
+                svg_splitter.split_svg(root_svg, max_height = 10000)
                 svg_slices = svg_splitter.write_splits(prefix=os.path.join(outdir, "temp_"))
     
                 for i, split in enumerate(svg_splitter.get_splits()):

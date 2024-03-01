@@ -5,7 +5,7 @@ import ipywidgets as widgets
 from ipywidgets.embed import embed_minimal_html, dependency_state
 
 from genomeview.svg import Renderer, SVG
-from genomeview.export import SvgSplitter
+from genomeview.export import SvgSplitter, _convertSVG_resvg_stdio
 
 
 class Document:
@@ -76,8 +76,9 @@ class Document:
             svg_splitter.split_svg(root_svg, max_height = 10000)
 
             pngs = []
-            for split_svg in svg_splitter.split_svgs:
-                pngs.append(svg2png(bytestring=ET.tostring(split_svg.getroot(), encoding='utf8')))
+            for split_svg in svg_splitter.get_splits():
+                pngs.append(_convertSVG_resvg_stdio(ET.tostring(split_svg.getroot(), encoding='utf-8')))
+                # pngs.append(svg2png(bytestring=ET.tostring(split_svg.getroot(), encoding='utf8')))
             return pngs
 
     def get_widget(self, format="png"):
