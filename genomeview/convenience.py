@@ -319,6 +319,25 @@ class Configuration():
                                   tighter_track = squish_reads)
 
 
+    # plot_feature for a list in tabs
+    def plot_features(self, features, bams_list, outformat="png",
+                      **kwargs):
+
+        params = inspect.signature(self.plot_feature).parameters
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
+
+        features_tab = widgets.Tab()
+        tab_contents = []
+
+        for feature in features:
+            tab_contents.append(self.plot_feature(feature, bams_list, **filtered_kwargs).get_widget(outformat))
+
+        features_tab.children = tab_contents
+        features_tab.titles = features
+
+        return features_tab
+
+
     def plot_read(self, read_id, bam, **kwargs):
 
         regions = []
@@ -344,6 +363,8 @@ class Configuration():
             all_widgets.append(self.plot_interval(bams_list={"bam": bam}, interval=region).get_widget(), **filtered_kwargs)
 
         return widgets.VBox(all_widgets)
+
+
 
 
 
