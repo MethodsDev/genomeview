@@ -129,8 +129,17 @@ class Configuration():
             for entry in pysam.tabix_iterator(gtf_file, pysam.asGTF()):
                 if entry.feature == "gene":
                     gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
-                    self.id_to_coordinates[gene_id] = Interval(entry.start-1, entry.end-1, entry.contig)
-                    self.gene_to_transcripts[gene_id] = []
+                    gene_name = (entry.attributes.split(";")[2]).split(" ")[2].strip('"')
+
+                    # creating intermediates so that updating through either the gene_id or gene_name key will affect both
+                    gene_interval = Interval(entry.start-1, entry.end-1, entry.contig)
+                    transcripts_list = []
+
+                    self.id_to_coordinates[gene_id] = gene_interval
+                    self.id_to_coordinates[gene_name] = gene_interval
+                    self.gene_to_transcripts[gene_id] = transcripts_list
+                    self.gene_to_transcripts[gene_name] = transcripts_list
+
                 elif entry.feature == "transcript":
                     gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
