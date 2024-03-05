@@ -132,7 +132,7 @@ class Configuration():
                     gene_name = (entry.attributes.split(";")[2]).split(" ")[2].strip('"')
 
                     # creating intermediates so that updating through either the gene_id or gene_name key will affect both
-                    gene_interval = Interval(entry.start-1, entry.end-1, entry.contig)
+                    gene_interval = Interval(entry.start, entry.end, entry.contig)
                     transcripts_list = []
 
                     self.id_to_coordinates[gene_id] = gene_interval
@@ -143,7 +143,7 @@ class Configuration():
                 elif entry.feature == "transcript":
                     gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
-                    self.id_to_coordinates[transcript_id] = Interval(entry.start-1, entry.end-1, entry.contig)
+                    self.id_to_coordinates[transcript_id] = Interval(entry.start, entry.end, entry.contig)
                     self.transcript_to_gene[transcript_id] = gene_id
                     self.gene_to_transcripts[gene_id].append(transcript_id)
 
