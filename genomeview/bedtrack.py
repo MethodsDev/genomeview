@@ -217,8 +217,19 @@ class BEDTrack(IntervalTrack):
             cur_exon = tx.exons[i]
             next_exon = tx.exons[i+1]
 
-            cur_start = self.scale.topixels(cur_exon[1])
-            cur_end = self.scale.topixels(next_exon[0])
+            if cur_exon[1] < self.scale.start:
+                if next_exon[0] < self.scale.start:
+                    continue
+                cur_start = self.scale.topixels(self.scale.start - 1)
+            else:
+                cur_start = self.scale.topixels(cur_exon[1])
+
+            if next_exon[0] > self.scale.end:
+                if cur_exon[1] > self.scale.end:
+                    continue
+                cur_end = self.scale.topixels(self.scale.end + 1)
+            else:
+                cur_end = self.scale.topixels(next_exon[0])
 
             direction = "right" if interval.strand=="+" else "left"
             n_arrows = int(round((cur_end-cur_start) / (self.row_height*0.75)))
@@ -238,6 +249,11 @@ class BEDTrack(IntervalTrack):
         # print(interval, tx.exons)
         for which in ["thin", "thick"]:
             for cur_start, cur_end in tx.exons:
+
+                # out of viewing bounds
+                if cur_end < self.scale.start or cur_start > self.scale.end:
+                    continue
+
                 if which == "thick":
                     cur_y = top
                     cur_width = self.thick_width
