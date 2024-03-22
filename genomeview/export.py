@@ -9,7 +9,7 @@ import math
 import copy
 from intervaltree import Interval, IntervalTree
 
-
+RESVG = None
 
 def save(doc, outpath, outformat=None, requested_converter=None):
     """
@@ -48,7 +48,8 @@ def save(doc, outpath, outformat=None, requested_converter=None):
         else:
             outpath_prefix = outpath
 
-        if requested_converter is None or requested_converter == "resvg":
+        if (requested_converter is None or requested_converter == "resvg") and _checkRESVGConvert():
+
             root_svg = ET.fromstring(doc._repr_svg_())
             svg_splitter = SvgSplitter(root_svg)
             svg_splitter.split_svg(root_svg, max_height = 10000)
@@ -58,7 +59,7 @@ def save(doc, outpath, outformat=None, requested_converter=None):
                 with open(outpath_prefix + filename, 'wb') as outf:
                     outf.write(split_png)
 
-        elif requested_converter == "librsvg":
+        elif (requested_converted is None or requested_converter == "librsvg"):
             # render to a temporary file then convert to PDF or PNG
             with tempfile.TemporaryDirectory() as outdir:
                 temp_svg_path = os.path.join(outdir, "temp.svg")
@@ -67,13 +68,13 @@ def save(doc, outpath, outformat=None, requested_converter=None):
     
                 tree = ET.parse(temp_svg_path)
                 root_svg = tree.getroot()
-                svg_splitter = svg_splitter(root_svg)
+                svg_splitter = SvgSplitter(root_svg)
                 svg_splitter.split_svg(root_svg, max_height = 10000)
                 svg_slices = svg_splitter.write_splits(prefix=os.path.join(outdir, "temp_"))
     
                 for i, split in enumerate(svg_splitter.get_splits()):
                     filename = f"_p{i+1:02}.png"
-                    convert_svg(svg_slice, outpath_prefix + filename, outformat, requested_converter="librsvg")
+                    convert_svg(split, outpath_prefix + filename, outformat, requested_converter="librsvg")
 
     else: # pdf
         # do something
@@ -512,18 +513,16 @@ def _getExportConverter(exportFormat, requested_converter=None):
         sys.exit(1)
 
     if exportFormat == "png" and requested_converter in [None, "resvg"]:
-        return "resvg"
+        if _checkRESVGConvert():
+            return "resvg"
 
-    if exportFormat == "png" and requested_converter == "rsvg-convert":
-        return "librsvg"
+    if exportFormat == "png" and requested_converter in [None, "rsvg-convert", "librsvg"]:
+        if _checkRSVGConvert():
+            return "librsvg"
 
     if requested_converter in [None, "webkittopdf"]:
         if _checkWebkitToPDF():
             return "webkittopdf"
-
-    if requested_converter in [None, "librsvg"]:
-        if _checkRSVGConvert():
-            return "librsvg"
 
     if requested_converter in [None, "inkscape"]:
         if _checkInkscape():
@@ -540,6 +539,25 @@ def _checkWebkitToPDF():
         return True
     except subprocess.CalledProcessError:
         return False
+
+def _checkRESVGConvert():
+    global RESVG
+    if RESVG is not None:
+        return True
+
+    try:
+        cmd = [f"{sys.exec_prefix}/bin/resvg", "-V"]
+        subprocess.check_call(cmd, stdout=subprocess.PIPE)
+        RESVG = f"{sys.exec_prefix}/bin/resvg"
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        try:
+            cmd = ["resvg", "-V"]
+            subprocess.check_call(cmd, stdout=subprocess.PIPE)
+            RESVG = "resvg"
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
 
 def _checkRSVGConvert():
     try:
@@ -559,8 +577,9 @@ def _checkInkscape():
 
 def _convertSVG_resvg(inpath, outpath):
     try:
-        cmd = "resvg {} {}".format(inpath, outpath)
-        subprocess.check_call(cmd, shell=True)#, stderr=subprocess.PIPE)
+        # cmd = "resvg {} {}".format(inpath, outpath)
+        cmd = [RESVG, inpath, outpath]
+        subprocess.check_call(cmd)#, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError:
         return None
 
@@ -572,7 +591,7 @@ def _convertSVG_resvg_stdio(indata):
         if isinstance(indata, str):
             indata = indata.encode('utf-8')
 
-        cmd = ["resvg", "--resources-dir", "./", "-", "-c"]
+        cmd = [RESVG, "--resources-dir", "./", "-", "-c"]
         process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         outdata, errdata = process.communicate(indata)
         if process.returncode != 0:
