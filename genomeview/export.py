@@ -548,13 +548,13 @@ def _checkRESVGConvert():
     try:
         cmd = [f"{sys.exec_prefix}/bin/resvg", "-V"]
         subprocess.check_call(cmd, stdout=subprocess.PIPE)
-        RESVG = f"{sys.exec_prefix}/bin/resvg"
+        RESVG = [f"{sys.exec_prefix}/bin/resvg", "--use-fonts-dir", f"{sys.exec_prefix}/fonts/"]
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         try:
             cmd = ["resvg", "-V"]
             subprocess.check_call(cmd, stdout=subprocess.PIPE)
-            RESVG = "resvg"
+            RESVG = ["resvg"]
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
@@ -578,7 +578,7 @@ def _checkInkscape():
 def _convertSVG_resvg(inpath, outpath):
     try:
         # cmd = "resvg {} {}".format(inpath, outpath)
-        cmd = [RESVG, inpath, outpath]
+        cmd = RESVG + [inpath, outpath]
         subprocess.check_call(cmd)#, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError:
         return None
@@ -591,7 +591,7 @@ def _convertSVG_resvg_stdio(indata):
         if isinstance(indata, str):
             indata = indata.encode('utf-8')
 
-        cmd = [RESVG, "--resources-dir", "./", "-", "-c"]
+        cmd = RESVG +  ["--resources-dir", "./", "-", "-c"]
         process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         outdata, errdata = process.communicate(indata)
         if process.returncode != 0:
