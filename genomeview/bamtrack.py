@@ -1,6 +1,8 @@
 import collections
 import logging
 import pysam
+import numpy as np
+import pandas as pd
 
 import os
 
@@ -491,9 +493,6 @@ class BAMCoverageTrack(GraphTrack):
         self.include_secondary = False
         
     def layout(self, scale):
-        import numpy as np
-        import pandas as pd
-
         super().layout(scale)
 
         chrom = match_chrom_format(scale.chrom, self.bam.references)
