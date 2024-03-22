@@ -16,7 +16,7 @@ def _addOptions(kwdargs, defaults=None):
 class SVG(GraphicsBackend):
     _filter_id = 0
 
-    def text(self, x, y, text, size=10, anchor="middle", family="Helvetica", **kwdargs):
+    def text(self, x, y, text, size=10, anchor="middle", family="Source Sans Pro", **kwdargs):
         defaults = {}
         assert anchor in ["start", "middle", "end"]
         yield """<text x="{x:.2f}" y="{y:.2f}" font-size="{size}" font-family="{family}" text-anchor="{anchor}" {more}>{text}</text>""".format(
