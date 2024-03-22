@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 
 import os
+from dataclasses import dataclass
+from typing import List
 
 from genomeview.track import Track
 from genomeview.intervaltrack import Interval, IntervalTrack
@@ -28,6 +30,263 @@ def color_by_strand(interval):
         if interval.read.is_secondary:
             color = "#E8C49D"
     return color
+
+
+
+@dataclass
+class PileupRead:
+    alignment: pysam.AlignedSegment
+    query_position: int
+    is_del: bool
+    is_refskip: bool
+    indel: int
+
+@dataclass
+class PileupColumn:
+    pos: int
+    pileups: list[PileupRead]
+    
+    def __post_init__(self):
+        self.n = len(self.pileups)
+
+
+class VirtualBAM():
+    def __init__(self, reads, references):
+        self.reads = reads
+        self.references = references
+        self.is_indexed = False
+        self.reads_interval_tree = None
+
+    def __enter__(self):
+        return self
+ 
+    def __exit__(self, *args):
+        return
+
+    def index(self):
+        if self.is_indexed:
+            return
+        self.reads_interval_tree = IntervalTree()
+        for read in self.reads:
+            interval_start = current_position = read.reference_start
+            for cigar_code, length in read.cigartuples:
+                if cigar_code in [0, 2, 7, 8]:  # M, D, =, X
+                    current_position += length
+                elif cigar_code == 3:  # N: skipped region from the reference
+                    if interval_start != current_position:
+                        self.reads_interval_tree.addi(interval_start, current_position, read)
+                    current_position += length
+                    interval_start = current_position
+                # else irrelevant
+            if interval_start != current_position:
+                self.reads_interval_tree.addi(interval_start, current_position, read)
+        self.is_indexed = True
+
+
+    def fetch(self, chrom=None, start=None, end=None):
+        seen = set()
+        if chrom is None:
+            if self.is_indexed:
+                for interval in sorted(self.reads_interval_tree[start:end]):
+                    if interval.data not in seen:
+                        seen.add(interval.data)
+                        yield interval.data
+            else:
+                for read in self.reads:
+                    yield read
+        else:
+            chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+            if self.is_indexed:
+                for interval in sorted(self.reads_interval_tree[start:end]):
+                #for interval in self.reads_interval_tree[start]:
+                    if interval.data.reference_name == chrom:
+                        if interval.data not in seen:
+                            seen.add(interval.data)
+                            yield interval.data
+            else:
+                for read in self.reads:
+                    if read.reference_name == chrom and read.reference_start < end and read.reference_end > start:
+                        yield read
+
+    def point_fetch(self, chrom=None, start=None, end=None):
+        if chrom is None:
+            if self.is_indexed:
+                for interval in sorted(self.reads_interval_tree[start:end]):
+                    yield interval.data
+            else:
+                for read in self.reads:
+                    yield read
+        else:
+            chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+            if self.is_indexed:
+                for interval in sorted(self.reads_interval_tree[start:end]):
+                #for interval in self.reads_interval_tree[start]:
+                    if interval.data.reference_name == chrom:
+                        yield interval.data
+            else:
+                for read in self.reads:
+                    if read.reference_name == chrom and read.reference_start < end and read.reference_end > start:
+                        yield read
+
+
+    # truncate is always True for the implementation, but have the argument existing for compatibility
+    def pileup(self, chrom, start, end, truncate=True, min_base_quality=13, step_size=1000):
+        chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+    
+        # for ref_pos in range(start, end, step_size):
+        for window_start in range(start, end, step_size):
+
+            window_end = window_start + step_size
+            window_end = end if window_end > end else window_end
+
+            pileups = np.empty(window_end - window_start, dtype=object)
+            pileups[...] = [[] for _ in range(pileups.shape[0])]
+            # pileups = np.full(window_end - window_start, [], dtype=object)
+            
+            # for i in range(0, current_end - window_end):  # range(0, step_size) except for last iteration
+                    
+            for read in self.fetch(chrom, window_start, window_end):
+                ref_position = read.reference_start
+                query_position = 0  # Initialize query_position to the start of the read
+                # within_cigar_bounds = False
+    
+                for cigar_code, length in read.cigartuples:
+                    if cigar_code in [1, 4]: # I: insertion to the reference, S: Soft clipping
+                        query_position += length
+                        if query_position > window_end:
+                            break
+                        continue
+                            
+                    elif ref_position + length < window_start:
+                        if cigar_code in [0, 2, 3, 7, 8]:  # M, D, N, =, X consume reference sequence
+                            ref_position += length
+                        if cigar_code in [0, 7, 8]:  # M, =, X consume query sequence
+                            query_position += length
+                        continue
+
+                    elif ref_position >= window_end: # likely only when window end happens at the exact same position as a cigar change
+                        break
+                    
+                    elif ref_position < window_start: # start of current cigar does not overlap window, but part of it does
+                        overlap_length = length - (window_start - ref_position)
+                        overlap_length = step_size if overlap_length > step_size else overlap_length # in case the cigar operation extends beyond the end of the window
+
+                    else: # should always be within window at this point
+                        overlap_length = window_end - ref_position if ref_position + length > window_end else length
+
+
+                    if cigar_code in [0, 7, 8]: # M, =, X
+                        for current_window_offset in range(0, overlap_length):
+                            # ref_pos = window_start + current_window_offset
+                            final_query_position = query_position + current_window_offset
+                            base_qual = read.query_qualities[final_query_position] if read.query_qualities else 0
+                            if base_qual >= min_base_quality:
+                                pileups[current_window_offset].append(PileupRead(read, final_query_position, False, False, 0))
+                    elif cigar_code == 2: # D: deletion from the reference
+                        for current_window_offset in range(0, overlap_length):
+                            pileups[current_window_offset].append(PileupRead(read, None, True, False, length))
+                    elif cigar_code == 3:  # N: skipped region from the reference
+                        for current_window_offset in range(0, overlap_length):
+                            pileups[current_window_offset].append(PileupRead(read, None, False, True, 0))
+            
+            i = 0
+            for ref_pos in range(window_start, window_end):
+                if pileups[i]:
+                    yield PileupColumn(ref_pos, pileups[i])
+                i += 1
+
+
+
+    def pileup3(self, chrom, start, end, truncate=True, min_base_quality=13):
+        chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+    
+        for ref_pos in range(start, end):
+            pileups = []
+            for read in self.point_fetch(chrom, ref_pos, ref_pos + 1):
+                ref_position = read.reference_start
+                query_position = 0  # Initialize query_position to the start of the read
+                within_cigar_bounds = False
+    
+                for cigar_code, length in read.cigartuples:
+                    if cigar_code in [0, 7, 8]:  # M, =, X
+                        if ref_position + length > ref_pos >= ref_position:
+                            # The base is within this CIGAR operation
+                            query_offset = ref_pos - ref_position
+                            final_query_position = query_position + query_offset
+                            base_qual = read.query_qualities[final_query_position] if read.query_qualities else 0
+                            if base_qual >= min_base_quality:
+                                pileups.append(PileupRead(read, final_query_position, False, False, 0))
+                            within_cigar_bounds = True
+                            break
+                        query_position += length  # Increment query_position for match/mismatch
+                    elif cigar_code == 1:  # I: insertion to the reference
+                        query_position += length
+                    elif cigar_code == 4:  # S: soft clipping
+                        if not within_cigar_bounds:  # Only add to query_position if we're before the alignment
+                            query_position += length
+                    elif cigar_code == 2:  # D: deletion from the reference
+                        if ref_position <= ref_pos < ref_position + length:
+                            pileups.append(PileupRead(read, None, True, False, length))
+                    elif cigar_code == 3:  # N: skipped region from the reference
+                        if ref_position <= ref_pos < ref_position + length:
+                            pileups.append(PileupRead(read, None, False, True, 0))
+    
+                    # Adjust ref_position for operations that consume reference sequence
+                    if cigar_code in [0, 2, 3, 7, 8]:  # M, D, N, =, X consume reference sequence
+                        ref_position += length
+    
+                    if within_cigar_bounds:
+                        break
+    
+            if pileups or not truncate:
+                yield PileupColumn(ref_pos, pileups)
+
+    
+    def pileup2(self, chrom, start, end, truncate=True, min_base_quality=13):
+        chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+    
+        for ref_pos in range(start, end):
+            pileups = []
+            for read in self.fetch(chrom, ref_pos, ref_pos + 1):
+                ref_position = read.reference_start
+                query_position = 0  # Initialize query_position to the start of the read
+                within_cigar_bounds = False
+    
+                for cigar_code, length in read.cigartuples:
+                    if cigar_code in [0, 7, 8]:  # M, =, X
+                        if ref_position + length > ref_pos >= ref_position:
+                            # The base is within this CIGAR operation
+                            query_offset = ref_pos - ref_position
+                            final_query_position = query_position + query_offset
+                            base_qual = read.query_qualities[final_query_position] if read.query_qualities else 0
+                            if base_qual >= min_base_quality:
+                                pileups.append(PileupRead(read, final_query_position, False, False, 0))
+                            within_cigar_bounds = True
+                            break
+                        query_position += length  # Increment query_position for match/mismatch
+                    elif cigar_code == 1:  # I: insertion to the reference
+                        query_position += length
+                    elif cigar_code == 4:  # S: soft clipping
+                        if not within_cigar_bounds:  # Only add to query_position if we're before the alignment
+                            query_position += length
+                    elif cigar_code == 2:  # D: deletion from the reference
+                        if ref_position <= ref_pos < ref_position + length:
+                            pileups.append(PileupRead(read, None, True, False, length))
+                    elif cigar_code == 3:  # N: skipped region from the reference
+                        if ref_position <= ref_pos < ref_position + length:
+                            pileups.append(PileupRead(read, None, False, True, 0))
+    
+                    # Adjust ref_position for operations that consume reference sequence
+                    if cigar_code in [0, 2, 3, 7, 8]:  # M, D, N, =, X consume reference sequence
+                        ref_position += length
+    
+                    if within_cigar_bounds:
+                        break
+    
+            if pileups or not truncate:
+                yield PileupColumn(ref_pos, pileups)
+
+
     
 class SingleEndBAMTrack(IntervalTrack):
     """
