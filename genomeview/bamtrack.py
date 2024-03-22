@@ -53,7 +53,7 @@ class SingleEndBAMTrack(IntervalTrack):
             and returns True (yes, display the read) or False (no, don't display). If this 
             function is not specified, by default all reads are shown.
     """
-    def __init__(self, bam_path, name=None):
+    def __init__(self, bam_path, name=None, opener_fn=pysam.AlignmentFile):
         """
         Args:
             bam_path (str): path of the bam file to display
@@ -63,7 +63,11 @@ class SingleEndBAMTrack(IntervalTrack):
         super().__init__([], name=name)
 
         self.bam_path = bam_path
-        self.bam = pysam.AlignmentFile(bam_path)
+        # with pysam.AlignmentFile(bam_path) as bam:
+        self.opener_fn = opener_fn
+        with self.opener_fn(bam_path) as bam:
+            self.bam_references = bam.references
+        # self.bam = pysam.AlignmentFile(bam_path)
         self.intervals = self
         self.mismatch_counts = None
         
@@ -95,9 +99,11 @@ class SingleEndBAMTrack(IntervalTrack):
         chrom = self.match_chrom_format(self.scale.chrom)
         start, end = self.scale.start, self.scale.end
         
-        for read in self.bam.fetch(chrom, start, end):
-            if not self.include_read_fn or self.include_read_fn(read):
-                yield read
+        # with pysam.AlignmentFile(self.bam_path) as bam:
+        with self.opener_fn(self.bam_path) as bam:
+            for read in bam.fetch(chrom, start, end):
+                if not self.include_read_fn or self.include_read_fn(read):
+                    yield read
         
     def __iter__(self):
         c = 0
@@ -118,7 +124,8 @@ class SingleEndBAMTrack(IntervalTrack):
         Ensures that the input argument `chrom` matches the chromosome name formatting in
         the bam file being visualized (ie "chr14" vs "14").
         """
-        return match_chrom_format(chrom, self.bam.references)
+        # return match_chrom_format(chrom, self.bam.references)
+        return match_chrom_format(chrom, self.bam_references)
         
     def layout(self, scale):
         super().layout(scale)
@@ -131,8 +138,10 @@ class SingleEndBAMTrack(IntervalTrack):
 
             # workaround for some quirk of pysam with crams and large cigars
             # (or something like that, opening a fresh file handle seems to fix the issue)
-            bam = pysam.AlignmentFile(self.bam_path)
-            self.mismatch_counts.tally_reads(bam)
+            #bam = pysam.AlignmentFile(self.bam_path)
+            # with pysam.AlignmentFile(bam_path) as bam:
+            with self.opener_fn(self.bam_path) as bam:
+                self.mismatch_counts.tally_reads(bam)
 
     def layout_interval(self, interval):
         super().layout_interval(interval)
