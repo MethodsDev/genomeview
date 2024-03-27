@@ -367,7 +367,7 @@ class VirtualBAM():
                 for read in self.reads:
                     yield read
         else:
-            chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+            chrom = match_chrom_format(chrom, self.references)
             if self.is_indexed:
                 for interval in sorted(self.reads_interval_tree[start:end]):
                 #for interval in self.reads_interval_tree[start]:
@@ -389,7 +389,7 @@ class VirtualBAM():
                 for read in self.reads:
                     yield read
         else:
-            chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+            chrom = match_chrom_format(chrom, self.references)
             if self.is_indexed:
                 for interval in sorted(self.reads_interval_tree[start:end]):
                 #for interval in self.reads_interval_tree[start]:
@@ -403,7 +403,7 @@ class VirtualBAM():
 
     # truncate is always True for the implementation, but have the argument existing for compatibility
     def pileup(self, chrom, start, end, truncate=True, min_base_quality=13, step_size=100):
-        chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
+        chrom = match_chrom_format(chrom, self.references)
     
         # for ref_pos in range(start, end, step_size):
         if step_size > end - start:
@@ -671,25 +671,29 @@ class GroupedBAMTrack(Track):
 
 
 class BAMCoverageTrack(GraphTrack):
-    def __init__(self, bam_path, name=None):
-        if name is None:
+    def __init__(self, bam_path, name=None, opener_fn=pysam.AlignmentFile):
+        if name is None and type(name) is str:
             name = os.path.basename(bam_path.split(".")[0])
         super().__init__(name=name)
         
         self.bam_path = bam_path
-        self.bam = pysam.AlignmentFile(bam_path)
+        # self.bam = pysam.AlignmentFile(bam_path)
+        self.opener_fn = opener_fn
+        with self.opener_fn(bam_path) as bam:
+            self.bam_references = bam.references
         self.include_secondary = False
         
     def layout(self, scale):
         super().layout(scale)
 
-        chrom = match_chrom_format(scale.chrom, self.bam.references)
+        chrom = match_chrom_format(scale.chrom, self.bam_references)
         counts = collections.defaultdict(int)
         
-        for read in self.bam.fetch(chrom, scale.start, scale.end):
-            if read.is_secondary and not self.include_secondary: continue
-            for i in read.get_reference_positions():
-                counts[i] += 1
+        with self.opener_fn(self.bam_path) as bam:
+            for read in bam.fetch(chrom, scale.start, scale.end):
+                if read.is_secondary and not self.include_secondary: continue
+                for i in read.get_reference_positions():
+                    counts[i] += 1
         
         x = np.arange(scale.start, scale.end+1)
         y = []
