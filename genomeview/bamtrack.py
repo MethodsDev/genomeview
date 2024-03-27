@@ -32,6 +32,9 @@ def color_by_strand(interval):
     return color
 
 
+from genomeview import SingleEndBAMTrack
+from intervaltree import Interval, IntervalTree
+import numpy as np
 
 @dataclass
 class PileupRead:
@@ -134,6 +137,9 @@ class VirtualBAM():
         chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
     
         # for ref_pos in range(start, end, step_size):
+        if step_size > end - start:
+            step_size = end - start
+        
         for window_start in range(start, end, step_size):
 
             window_end = window_start + step_size
@@ -141,53 +147,64 @@ class VirtualBAM():
 
             pileups = np.empty(window_end - window_start, dtype=object)
             pileups[...] = [[] for _ in range(pileups.shape[0])]
-            # pileups = np.full(window_end - window_start, [], dtype=object)
-            
-            # for i in range(0, current_end - window_end):  # range(0, step_size) except for last iteration
-                    
+                   
             for read in self.fetch(chrom, window_start, window_end):
                 ref_position = read.reference_start
                 query_position = 0  # Initialize query_position to the start of the read
-                # within_cigar_bounds = False
+                current_window_index = 0
     
                 for cigar_code, length in read.cigartuples:
-                    if cigar_code in [1, 4]: # I: insertion to the reference, S: Soft clipping
+                    overlap_length = 0
+
+                    if ref_position >= window_end: # likely only when window end happens at the exact same position as a cigar change
+                        break
+                    
+                    elif cigar_code == 4 or (cigar_code == 1 and ref_position < window_start): # S: Soft clipping, I: insertion to the reference
                         query_position += length
-                        if query_position > window_end:
-                            break
                         continue
-                            
-                    elif ref_position + length < window_start:
+
+                    elif ref_position + length <= window_start:
                         if cigar_code in [0, 2, 3, 7, 8]:  # M, D, N, =, X consume reference sequence
                             ref_position += length
                         if cigar_code in [0, 7, 8]:  # M, =, X consume query sequence
                             query_position += length
                         continue
 
-                    elif ref_position >= window_end: # likely only when window end happens at the exact same position as a cigar change
-                        break
-                    
                     elif ref_position < window_start: # start of current cigar does not overlap window, but part of it does
                         overlap_length = length - (window_start - ref_position)
                         overlap_length = step_size if overlap_length > step_size else overlap_length # in case the cigar operation extends beyond the end of the window
+                        current_window_index = 0
 
                     else: # should always be within window at this point
                         overlap_length = window_end - ref_position if ref_position + length > window_end else length
-
+                        current_window_index = ref_position - window_start
 
                     if cigar_code in [0, 7, 8]: # M, =, X
-                        for current_window_offset in range(0, overlap_length):
+                        for current_window_offset in range(current_window_index, current_window_index + overlap_length):
+                            #print("current_window_offset = " + str(current_window_offset))
                             # ref_pos = window_start + current_window_offset
-                            final_query_position = query_position + current_window_offset
+                            if ref_position < window_start:
+                                final_query_position = query_position + (window_start - ref_position) + current_window_offset - current_window_index
+                            else:
+                                final_query_position = query_position + current_window_offset - current_window_index
                             base_qual = read.query_qualities[final_query_position] if read.query_qualities else 0
                             if base_qual >= min_base_quality:
                                 pileups[current_window_offset].append(PileupRead(read, final_query_position, False, False, 0))
+
+                        ref_position += length
+                        query_position += length
+                    elif cigar_code == 1: # I: insertion to the reference
+                        #pileups[ref_position - window_start].append(PileupRead(read, None, False, False, length))
+                        query_position += length
+
                     elif cigar_code == 2: # D: deletion from the reference
-                        for current_window_offset in range(0, overlap_length):
+                        for current_window_offset in range(current_window_index, current_window_index + overlap_length):
                             pileups[current_window_offset].append(PileupRead(read, None, True, False, length))
+                        ref_position += length
                     elif cigar_code == 3:  # N: skipped region from the reference
-                        for current_window_offset in range(0, overlap_length):
+                        for current_window_offset in range(current_window_index, current_window_index + overlap_length):
                             pileups[current_window_offset].append(PileupRead(read, None, False, True, 0))
+                        ref_position += length                    
             
             i = 0
             for ref_pos in range(window_start, window_end):
@@ -205,7 +222,7 @@ class VirtualBAM():
             for read in self.point_fetch(chrom, ref_pos, ref_pos + 1):
                 ref_position = read.reference_start
                 query_position = 0  # Initialize query_position to the start of the read
-                within_cigar_bounds = False
+                #within_cigar_bounds = False
     
                 for cigar_code, length in read.cigartuples:
                     if cigar_code in [0, 7, 8]:  # M, =, X
@@ -216,27 +233,29 @@ class VirtualBAM():
                             base_qual = read.query_qualities[final_query_position] if read.query_qualities else 0
                             if base_qual >= min_base_quality:
                                 pileups.append(PileupRead(read, final_query_position, False, False, 0))
-                            within_cigar_bounds = True
+                            #within_cigar_bounds = True
                             break
                         query_position += length  # Increment query_position for match/mismatch
                     elif cigar_code == 1:  # I: insertion to the reference
                         query_position += length
                     elif cigar_code == 4:  # S: soft clipping
-                        if not within_cigar_bounds:  # Only add to query_position if we're before the alignment
-                            query_position += length
+                        #if not within_cigar_bounds:  # Only add to query_position if we're before the alignment
+                        query_position += length
                     elif cigar_code == 2:  # D: deletion from the reference
                         if ref_position <= ref_pos < ref_position + length:
                             pileups.append(PileupRead(read, None, True, False, length))
+                            break
                     elif cigar_code == 3:  # N: skipped region from the reference
                         if ref_position <= ref_pos < ref_position + length:
                             pileups.append(PileupRead(read, None, False, True, 0))
+                            break
     
                     # Adjust ref_position for operations that consume reference sequence
                     if cigar_code in [0, 2, 3, 7, 8]:  # M, D, N, =, X consume reference sequence
                         ref_position += length
     
-                    if within_cigar_bounds:
-                        break
+                    #if within_cigar_bounds:
+                    #    break
     
             if pileups or not truncate:
                 yield PileupColumn(ref_pos, pileups)
@@ -250,7 +269,7 @@ class VirtualBAM():
             for read in self.fetch(chrom, ref_pos, ref_pos + 1):
                 ref_position = read.reference_start
                 query_position = 0  # Initialize query_position to the start of the read
-                within_cigar_bounds = False
+                #within_cigar_bounds = False
     
                 for cigar_code, length in read.cigartuples:
                     if cigar_code in [0, 7, 8]:  # M, =, X
@@ -261,30 +280,33 @@ class VirtualBAM():
                             base_qual = read.query_qualities[final_query_position] if read.query_qualities else 0
                             if base_qual >= min_base_quality:
                                 pileups.append(PileupRead(read, final_query_position, False, False, 0))
-                            within_cigar_bounds = True
+                            #within_cigar_bounds = True
                             break
                         query_position += length  # Increment query_position for match/mismatch
                     elif cigar_code == 1:  # I: insertion to the reference
                         query_position += length
                     elif cigar_code == 4:  # S: soft clipping
-                        if not within_cigar_bounds:  # Only add to query_position if we're before the alignment
+                        #if not within_cigar_bounds:  # Only add to query_position if we're before the alignment
                             query_position += length
                     elif cigar_code == 2:  # D: deletion from the reference
                         if ref_position <= ref_pos < ref_position + length:
                             pileups.append(PileupRead(read, None, True, False, length))
+                            break
                     elif cigar_code == 3:  # N: skipped region from the reference
                         if ref_position <= ref_pos < ref_position + length:
                             pileups.append(PileupRead(read, None, False, True, 0))
+                            break
     
                     # Adjust ref_position for operations that consume reference sequence
                     if cigar_code in [0, 2, 3, 7, 8]:  # M, D, N, =, X consume reference sequence
                         ref_position += length
     
-                    if within_cigar_bounds:
-                        break
+                    #if within_cigar_bounds:
+                        #break
     
             if pileups or not truncate:
                 yield PileupColumn(ref_pos, pileups)
+
 
 
     
