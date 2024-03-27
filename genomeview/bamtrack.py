@@ -355,7 +355,6 @@ class VirtualBAM():
                 self.reads_interval_tree.addi(interval_start, current_position, read)
         self.is_indexed = True
 
-
     def fetch(self, chrom=None, start=None, end=None):
         seen = set()
         if chrom is None:
@@ -403,13 +402,13 @@ class VirtualBAM():
 
 
     # truncate is always True for the implementation, but have the argument existing for compatibility
-    def pileup(self, chrom, start, end, truncate=True, min_base_quality=13, step_size=1000):
+    def pileup(self, chrom, start, end, truncate=True, min_base_quality=13, step_size=100):
         chrom = genomeview.utilities.match_chrom_format(chrom, self.references)
     
         # for ref_pos in range(start, end, step_size):
         if step_size > end - start:
             step_size = end - start
-        
+
         for window_start in range(start, end, step_size):
 
             window_end = window_start + step_size
@@ -442,7 +441,7 @@ class VirtualBAM():
 
                     elif ref_position < window_start: # start of current cigar does not overlap window, but part of it does
                         overlap_length = length - (window_start - ref_position)
-                        overlap_length = step_size if overlap_length > step_size else overlap_length # in case the cigar operation extends beyond the end of the window
+                        overlap_length = window_end - window_start if overlap_length > window_end - window_start else overlap_length # in case the cigar operation extends beyond the end of the window
                         current_window_index = 0
 
                     else: # should always be within window at this point
@@ -451,7 +450,6 @@ class VirtualBAM():
 
                     if cigar_code in [0, 7, 8]: # M, =, X
                         for current_window_offset in range(current_window_index, current_window_index + overlap_length):
-                            #print("current_window_offset = " + str(current_window_offset))
                             # ref_pos = window_start + current_window_offset
                             if ref_position < window_start:
                                 final_query_position = query_position + (window_start - ref_position) + current_window_offset - current_window_index
