@@ -226,7 +226,7 @@ class Configuration():
         row = genomeview.ViewRow("row")
 
         if interval_list is not None:
-            for interval in intervals_list:
+            for interval in interval_list:
                 chrom = interval.data
                 strand = True
                 start = interval.begin
@@ -285,14 +285,15 @@ class Configuration():
                        with_coverage = True,
                        with_TSS = True, 
                        include_secondary = False,
-                       view_width = 1600):
+                       view_width = 1600,
+                       tighter_track = False):
         doc = genomeview.Document(view_width)
 
         if interval_list is not None:
-            for i in range(0, len(interval_list), N_per_row):  
+            for i in range(0, len(interval_list), N_per_row):
                 doc = self.add_multi_view_row_to_plot(doc, bams_list, 
-                                                      interval = interval_list[i:i+N_per_row], 
-                                                      data = None, 
+                                                      interval_list = interval_list[i:i+N_per_row], 
+                                                      data_list = None, 
                                                       padding_perc = padding_perc,
                                                       with_coverage = with_coverage,
                                                       with_TSS = with_TSS, 
@@ -301,8 +302,8 @@ class Configuration():
         elif data_list is not None:
             for i in range(0, len(data_list), N_per_row):  
                 doc = self.add_multi_view_row_to_plot(doc, bams_list, 
-                                                      interval = None, 
-                                                      data = data_list[i:i+N_per_row], 
+                                                      interval_list = None, 
+                                                      data_list = data_list[i:i+N_per_row], 
                                                       padding_perc = padding_perc, 
                                                       with_coverage = with_coverage,
                                                       with_TSS = with_TSS, 
