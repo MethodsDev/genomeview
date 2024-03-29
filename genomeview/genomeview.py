@@ -124,20 +124,43 @@ class ViewRow:
     def layout(self, width):
         self.width = width
         n_views = len(self.views)
-        self.each_width = (self.width - self.space_between*(n_views-1)) / n_views
+
+        self.each_width = {}
+        
+        self.all_views_have_width = True
+        for view in self.views:
+            if view.pixel_width is None:
+                self.all_views_have_width = False
 
         self.height = 0
-        for view in self.views:
-            view.layout(self.each_width)
-            self.height = max(self.height, view.height)
+        if not self.all_views_have_width:
+            self.each_width = (self.width - self.space_between*(n_views-1)) / n_views
+
+            for view in self.views:
+                view.layout(self.each_width)
+                self.height = max(self.height, view.height)
+
+        else:
+            for view in self.views:
+                view.layout(view.pixel_width)
+                self.height = max(self.height, view.height)
     
+
+
     def render(self, renderer):
         curx = 0
-        for view in self.views:
-            subrenderer = renderer.subrenderer(x=curx, width=self.each_width, height=view.height)
-            yield from subrenderer.render(view)
-            curx += self.each_width + self.space_between
-        
+        if self.all_views_have_width:
+            for view in self.views:    
+                subrenderer = renderer.subrenderer(x=curx, width=view.pixel_width, height=view.height)
+                yield from subrenderer.render(view)
+                curx += view.pixel_width + self.space_between
+
+        else:
+            for view in self.views:    
+                subrenderer = renderer.subrenderer(x=curx, width=self.each_width, height=view.height)
+                yield from subrenderer.render(view)
+                curx += self.each_width + self.space_between
+
 
 class GenomeView:
     def __init__(self, chrom, start, end, strand, source=None, name=None):
@@ -147,7 +170,7 @@ class GenomeView:
         self.scale = Scale(chrom, start, end, strand, source)
 
         self.pixel_width = None
-        self.pixel_height = None
+        # self.pixel_height = None
 
         self.margin_y = 10
     
