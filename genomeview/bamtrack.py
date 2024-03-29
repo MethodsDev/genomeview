@@ -329,6 +329,10 @@ class VirtualBAM():
         self.references = references
         self.is_indexed = False
         self.reads_interval_tree = None
+        self.full_reads_interval_tree = None
+
+        # toggle this to not return reads that only align around the region but not actually inside the region when fetching/piluping
+        self.aligned_chunks_only = False
 
     def __enter__(self):
         return self
@@ -336,10 +340,11 @@ class VirtualBAM():
     def __exit__(self, *args):
         return
 
-    def index(self, aligned_chunks_only=False):
+    def index(self):
         if self.is_indexed:
             return
         self.reads_interval_tree = IntervalTree()
+        self.full_reads_interval_tree = IntervalTree()
         for read in self.reads:
             interval_start = current_position = read.reference_start
             for cigar_code, length in read.cigartuples:
@@ -353,17 +358,20 @@ class VirtualBAM():
                 # else irrelevant
             if interval_start != current_position:
                 self.reads_interval_tree.addi(interval_start, current_position, read)
-            if not aligned_chunks_only:
-                self.reads_interval_tree.addi(read.reference_start, read.reference_end, read)
+            self.full_reads_interval_tree.addi(read.reference_start, read.reference_end, read)
         self.is_indexed = True
 
     def fetch(self, chrom=None, start=None, end=None):
         seen = set()
         if chrom is None:
             if self.is_indexed:
-                for interval in sorted(self.reads_interval_tree[start:end]):
-                    if interval.data not in seen:
-                        seen.add(interval.data)
+                if self.aligned_chunks_only:
+                    for interval in sorted(self.reads_interval_tree[start:end]):
+                        if interval.data not in seen:
+                            seen.add(interval.data)
+                            yield interval.data
+                else:
+                    for interval in sorted(self.full_reads_interval_tree[start:end]):
                         yield interval.data
             else:
                 for read in self.reads:
@@ -371,11 +379,15 @@ class VirtualBAM():
         else:
             chrom = match_chrom_format(chrom, self.references)
             if self.is_indexed:
-                for interval in sorted(self.reads_interval_tree[start:end]):
-                #for interval in self.reads_interval_tree[start]:
-                    if interval.data.reference_name == chrom:
-                        if interval.data not in seen:
-                            seen.add(interval.data)
+                if self.aligned_chunks_only:
+                    for interval in sorted(self.reads_interval_tree[start:end]):
+                        if interval.data.reference_name == chrom:
+                            if interval.data not in seen:
+                                seen.add(interval.data)
+                                yield interval.data
+                else:
+                    for interval in sorted(self.full_reads_interval_tree[start:end]):
+                        if interval.data.reference_name == chrom:
                             yield interval.data
             else:
                 for read in self.reads:
