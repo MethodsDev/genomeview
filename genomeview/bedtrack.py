@@ -76,7 +76,11 @@ def tx_from_bedfields(bedfields, field_defs=None):
 
     return Transcript(**values)
 
-def fetch(path, chrom, start, end, field_defs=None):
+def bed_fetch(path, chrom, start, end, field_defs=None):
+    if type(path) is VirtualBEDTrack:
+        yield from path.fetch(chrom, start, end, field_defs=field_defs)
+        return
+
     try:
         yield from fetch_from_tabix(path, chrom, start, end, field_defs=field_defs)
         return
@@ -171,7 +175,7 @@ class BEDTrack(IntervalTrack):
         chrom = self.scale.chrom
         start, end = self.scale.start, self.scale.end
         
-        for locus in fetch(self.bed_path, chrom, start, end, field_defs=self.field_defs):
+        for locus in bed_fetch(self.bed_path, chrom, start, end, field_defs=self.field_defs):
             if not self.include_locus_fn or self.include_locus_fn(locus):
                 yield locus
 
@@ -287,4 +291,18 @@ class BEDTrack(IntervalTrack):
             end = self.scale.topixels(interval.end)
 
             yield from renderer.text(end+self.label_distance, top+self.row_height-2, interval.label, anchor="start")
-        
+
+
+class VirtualBEDTrack(BEDTrack):
+    #def __init__(self, bed_path, ):
+    #    super().__init__(bed_path)
+
+    def index(self, chrom, start, end, field_defs):
+        self.transcripts = []
+        for transcript in bed_fetch(self.bed_path, chrom, start, end, field_defs=field_defs):
+            self.transcripts.append(transcript)
+
+    def fetch(self, chrom=None, start=None, end=None, field_defs=None):
+        yield from self.transcripts
+        return
+
