@@ -336,7 +336,7 @@ class VirtualBAM():
     def __exit__(self, *args):
         return
 
-    def index(self):
+    def index(self, aligned_chunks_only=False):
         if self.is_indexed:
             return
         self.reads_interval_tree = IntervalTree()
@@ -353,6 +353,8 @@ class VirtualBAM():
                 # else irrelevant
             if interval_start != current_position:
                 self.reads_interval_tree.addi(interval_start, current_position, read)
+            if not aligned_chunks_only:
+                self.reads_interval_tree.addi(read.reference_start, read.reference_end, read)
         self.is_indexed = True
 
     def fetch(self, chrom=None, start=None, end=None):
