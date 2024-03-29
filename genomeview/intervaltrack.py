@@ -76,7 +76,7 @@ class IntervalTrack(Track):
         for interval in self.intervals:
             self.layout_interval(interval)
             
-        self.height = (len(self.rows)+1) * (self.row_height+self.margin_y)
+        self.height = max(1, len(self.rows)) * (self.row_height + self.margin_y)
     
     def draw_interval(self, renderer, interval):
         start = self.scale.topixels(interval.start)
