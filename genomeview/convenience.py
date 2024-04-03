@@ -413,7 +413,7 @@ class Configuration():
                    with_TSS = False, 
                    include_secondary = False, 
                    view_width = 1600,
-                   equal_size_exons = False,
+                   normalize_interval_width = False,
                    N_per_row = 99999,
                    tighter_track = False):
 
@@ -438,7 +438,7 @@ class Configuration():
             exons_list = sorted(self.transcript_to_exons[feature_id])
             doc = genomeview.Document(view_width)
             for i in range(0, len(exons_list), N_per_row):
-                doc = self.make_exons_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, equal_size_exons=equal_size_exons, tighter_track=tighter_track)
+                doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
             return doc
 
         elif feature_type == "gene":
@@ -459,21 +459,21 @@ class Configuration():
 
             doc = genomeview.Document(view_width)
             for i in range(0, len(exons_list), N_per_row):
-               doc = self.make_exons_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, equal_size_exons=equal_size_exons, tighter_track=tighter_track)
+               doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
             return doc
   
 
 
      
 
-    def make_exons_row_from_virtual(self, doc, exons_list, bams_list,
+    def make_intervals_row_from_virtual(self, doc, exons_list, bams_list,
                                     strand = True,
                                     padding_perc = 0.1, 
                                     with_coverage = True,
                                     with_TSS = True, 
                                     include_secondary = False,
                                     row = None, 
-                                    equal_size_exons = False,
+                                    normalize_interval_width = False,
                                     tighter_track = False):
 
 
@@ -491,11 +491,11 @@ class Configuration():
             left_bound = min(left_bound, exon_interval.begin)
             right_bound = max(right_bound, exon_interval.end)
 
-        padding = math.ceil(smallest_exon_size * padding_perc)
-        total_exon_size = total_exon_size + (padding * len(exons_list))
-
         reserved_width = (len(exons_list) - 1) * row.space_between + doc.margin_x * 2
-        per_base_size = (doc.width - reserved_width)/total_exon_size
+        if not normalize_interval_width:
+            padding = math.ceil(smallest_exon_size * padding_perc)
+            total_exon_size = total_exon_size + (padding * len(exons_list))
+            per_base_size = (doc.width - reserved_width)/total_exon_size
 
         max_coverage_dict = {}
         virtual_bams_dict = {}
@@ -523,8 +523,9 @@ class Configuration():
             start = exon_interval.begin
             end = exon_interval.end
             chrom = exon_interval.data
-
-            if equal_size_exons:
+            
+            if normalize_interval_width:
+                padding = math.ceil((end - start) * padding_perc)
                 exon_width = (doc.width - reserved_width)/len(exons_list)
             else:
                 exon_width = math.floor((exon_interval.end - exon_interval.begin + padding) * per_base_size)
