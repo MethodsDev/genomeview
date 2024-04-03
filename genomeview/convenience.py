@@ -415,6 +415,7 @@ class Configuration():
                    view_width = 1600,
                    normalize_interval_width = False,
                    N_per_row = 99999,
+                   as_widget = False,
                    tighter_track = False):
 
         feature_id = None
@@ -434,13 +435,9 @@ class Configuration():
         
         if feature_type == "exon":
             return self.plot_feature(feature_id, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, view_width=view_width, tighter_track=tighter_track)
+
         elif feature_type == "transcript":
             exons_list = sorted(self.transcript_to_exons[feature_id])
-            doc = genomeview.Document(view_width)
-            for i in range(0, len(exons_list), N_per_row):
-                doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
-            return doc
-
         elif feature_type == "gene":
             if merge_exons:
                 chrom = self.id_to_coordinates[feature_id].data
@@ -457,6 +454,21 @@ class Configuration():
             else:
                 exons_list = sorted(self.gene_to_exons[feature_id])
 
+        if as_widget:
+            all_views = []
+            all_titles = []
+            for exon in exons_list:
+                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), [exon], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+                all_views.append(widgets.HTML(doc._repr_svg_()))
+                # all_views.append(doc.get_widget())
+                all_titles.append("Exon:: " + exon.data + " : " + str(exon.begin) + " - " + str(exon.end))
+
+            stack = widgets.Stack(all_views, selected_index=0)
+            dropdown = widgets.Dropdown(options=all_titles)
+            widgets.jslink((dropdown, 'index'), (stack, 'selected_index'))
+            return(widgets.VBox([dropdown, stack]))
+
+        else:
             doc = genomeview.Document(view_width)
             for i in range(0, len(exons_list), N_per_row):
                doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
