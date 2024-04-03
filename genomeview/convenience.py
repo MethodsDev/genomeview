@@ -191,7 +191,7 @@ class Configuration():
         if row is None:
             row = genomeview.ViewRow("row")
         gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, strand, self.source)
-        gene_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start) + " - " + str(end)))
+        gene_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
         if self.annotation_path:
             gene_view.add_track(genomeview.BEDTrack(self.annotation_path, name="annot"))
         if with_TSS and self.tss_path:
