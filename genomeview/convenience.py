@@ -466,36 +466,36 @@ class Configuration():
 
      
 
-    def make_intervals_row_from_virtual(self, doc, exons_list, bams_list,
-                                    strand = True,
-                                    padding_perc = 0.1, 
-                                    with_coverage = True,
-                                    with_TSS = True, 
-                                    include_secondary = False,
-                                    row = None, 
-                                    normalize_interval_width = False,
-                                    tighter_track = False):
+    def make_intervals_row_from_virtual(self, doc, intervals_list, bams_list,
+                                        strand = True,
+                                        padding_perc = 0.1, 
+                                        with_coverage = True,
+                                        with_TSS = True, 
+                                        include_secondary = False,
+                                        row = None, 
+                                        normalize_interval_width = False,
+                                        tighter_track = False):
 
 
         if row is None:
             row = genomeview.ViewRow("row")
 
-        total_exon_size = 0
+        total_interval_size = 0
         left_bound = math.inf
         right_bound = -math.inf
 
-        smallest_exon_size = math.inf
-        for exon_interval in exons_list:
-            total_exon_size += exon_interval.end - exon_interval.begin
-            smallest_exon_size = min(smallest_exon_size, exon_interval.end - exon_interval.begin)
-            left_bound = min(left_bound, exon_interval.begin)
-            right_bound = max(right_bound, exon_interval.end)
+        smallest_interval_size = math.inf
+        for interval in intervals_list:
+            total_interval_size += interval.end - interval.begin
+            smallest_interval_size = min(smallest_interval_size, interval.end - interval.begin)
+            left_bound = min(left_bound, interval.begin)
+            right_bound = max(right_bound, interval.end)
 
-        reserved_width = (len(exons_list) - 1) * row.space_between + doc.margin_x * 2
+        reserved_width = (len(intervals_list) - 1) * row.space_between + doc.margin_x * 2
         if not normalize_interval_width:
-            padding = math.ceil(smallest_exon_size * padding_perc)
-            total_exon_size = total_exon_size + (padding * len(exons_list))
-            per_base_size = (doc.width - reserved_width)/total_exon_size
+            padding = math.ceil(smallest_interval_size * padding_perc)
+            total_interval_size = total_interval_size + (padding * len(intervals_list))
+            per_base_size = (doc.width - reserved_width)/total_interval_size
 
         max_coverage_dict = {}
         virtual_bams_dict = {}
@@ -507,8 +507,8 @@ class Configuration():
             bam_refs = None
             with pysam.AlignmentFile(value, "rb") as bam:
                 bam_refs = bam.references
-                for exon_interval in exons_list:
-                    for read in bam.fetch(exon_interval.data, exon_interval.begin, exon_interval.end):
+                for interval in intervals_list:
+                    for read in bam.fetch(interval.data, interval.begin, interval.end):
                         all_reads_for_coverage.add(read)
 
                 coverage_bam = genomeview.bamtrack.VirtualBAM(all_reads_for_coverage, bam_refs)
@@ -519,36 +519,36 @@ class Configuration():
                 
                 max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
         
-        for exon_interval in exons_list:
-            start = exon_interval.begin
-            end = exon_interval.end
-            chrom = exon_interval.data
+        for interval in intervals_list:
+            start = interval.begin
+            end = interval.end
+            chrom = interval.data
             
             if normalize_interval_width:
                 padding = math.ceil((end - start) * padding_perc)
-                exon_width = (doc.width - reserved_width)/len(exons_list)
+                interval_width = (doc.width - reserved_width)/len(intervals_list)
             else:
-                exon_width = math.floor((exon_interval.end - exon_interval.begin + padding) * per_base_size)
-            exon_view = genomeview.GenomeView(chrom, start - padding, end + padding, strand, source=self.source)
-            exon_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
+                interval_width = math.floor((interval.end - interval.begin + padding) * per_base_size)
+            interval_view = genomeview.GenomeView(chrom, start - padding, end + padding, strand, source=self.source)
+            interval_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
             
             # BED type features
             if self.annotation_path:
                 virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.annotation_path)
                 virtual_bed.index(chrom, left_bound, right_bound, field_defs=None)
-                exon_view.add_track(virtual_bed)
+                interval_view.add_track(virtual_bed)
             if with_TSS and self.tss_path:
                 virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.tss_path)
                 virtual_bed.index(chrom, left_bound, right_bound, fields_defs=None)
-                exon_view.add_track(virtual_bed)
+                interval_view.add_track(virtual_bed)
             
-            exon_view.add_track(genomeview.Axis())
+            interval_view.add_track(genomeview.Axis())
             for key, value in bams_list.items():
                 
                 if with_coverage:
                     coverage_track = genomeview.BAMCoverageTrack(value, name=key)
                     coverage_track.max_y = max_coverage_dict[key]
-                    exon_view.add_track(coverage_track)
+                    interval_view.add_track(coverage_track)
                 for virtual_bam in virtual_bams_dict[key]:
                     if tighter_track:
                         bam_track = TighterSingleEndBAMTrack(virtual_bam, name=None, opener_fn=lambda x: x)
@@ -557,10 +557,10 @@ class Configuration():
                     if include_secondary:
                         coverage_track.include_secondary = True
                         bam_track.include_secondary = True
-                    exon_view.add_track(bam_track)
-            exon_view.pixel_width = exon_width
-            exon_view.margin_y = 0
-            row.add_view(exon_view)
+                    interval_view.add_track(bam_track)
+            interval_view.pixel_width = interval_width
+            interval_view.margin_y = 0
+            row.add_view(interval_view)
 
         doc.elements.append(row)
         return doc
