@@ -6,7 +6,7 @@ import pysam
 import inspect
 import ipywidgets as widgets
 
-from intervaltree import Interval
+from intervaltree import Interval, IntervalTree
 
 import genomeview
 from genomeview import utilities
@@ -102,6 +102,28 @@ def get_regions_by_read_id(bam_file, read_id):
             regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id)))
 
     return(regions)
+
+
+def get_virtualbam_max_coverage(coverage_bam):
+    all_starts = []
+    all_ends = []
+    for inter in sorted(coverage_bam.reads_interval_tree):
+        all_starts.append(inter.begin)
+        all_ends.append(inter.end)
+    all_ends.sort()
+    current_max = current_coverage = i = j = 0
+    while i < len(all_starts) or j < len(all_ends):
+        if i < len(all_starts) and all_starts[i] < all_ends[j]:
+            current_coverage += 1
+            i += 1
+            current_max = max(current_max, current_coverage)
+        elif i < len(all_starts):
+            current_coverage -= 1
+            j += 1
+        elif j < len(all_ends):
+            current_coverage -= 1
+            j += 1
+    return current_max
 
 
 class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
