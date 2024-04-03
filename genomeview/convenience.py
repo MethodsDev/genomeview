@@ -407,6 +407,181 @@ class Configuration():
 
 
 
+    def plot_exons(self, feature_to_plot, bams_list, merge_exons = True,
+                   padding_perc = 0.05, 
+                   with_coverage = True, 
+                   with_TSS = False, 
+                   include_secondary = False, 
+                   view_width = 1600,
+                   equal_size_exons = False,
+                   N_per_row = 99999,
+                   tighter_track = False):
+
+        feature_id = None
+        feature_type = None
+        if feature_to_plot in self.gene_name_to_gene_id:
+            feature_id = self.gene_name_to_gene_id[feature_to_plot]
+            feature_type = "gene"
+        elif feature_to_plot in self.gene_to_exons:
+            feature_id = feature_to_plot
+            feature_type = "gene"
+        elif feature_to_plot in self.transcript_to_exons:
+            feature_id = feature_to_plot
+            feature_type = "transcript"
+        elif feature_to_plot in self.id_to_coordinates:
+            feature_id = feature_to_plot
+            feature_type = "exon"
+        
+        if feature_type == "exon":
+            return self.plot_feature(feature_id, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, view_width=view_width, tighter_track=tighter_track)
+        elif feature_type == "transcript":
+
+            #chrom = self.id_to_coordinates[self.transcript_to_exons[feature_id][0].data].data
+            #chrom = None
+            #for exon in self.transcript_to_exons[feature_id]:
+            #    chrom = self.id_to_coordinates[exon.data].data
+            #    break
+
+            if equal_size_exons:
+                # self.plot_intervals(bams_list, interval_list = [self.id_to_coordinates[exon_interval.data] for exon_interval in sorted(self.transcript_to_exons[feature_id])], N_per_row = N_per_row, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, tighter_track=tighter_track)
+                self.plot_intervals(bams_list, interval_list = sorted(self.transcript_to_exons[feature_id]), N_per_row = N_per_row, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, tighter_track=tighter_track)
+            else:
+                doc = genomeview.Document(view_width)
+                exons_list = sorted(self.transcript_to_exons[feature_id])
+                for i in range(0, len(exons_list), N_per_row):
+                    # exons_row = self.make_exons_row_from_virtual(exons_list[i:i+N_per_row], bams_list=bams_list, view_width=view_width, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, tighter_track=tighter_track)
+                    # doc.elements.append(exons_row)
+                    doc = self.make_exons_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, view_width=view_width, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, tighter_track=tighter_track)
+                return doc
+
+        elif feature_type == "gene":
+            doc = genomeview.Document(view_width)
+            if merge_exons:
+                chrom = self.id_to_coordinates[feature_id].data
+                tmp_exons = self.gene_to_exons[feature_id].copy()
+                
+                tmp_exons.merge_overlaps()
+                exons_list_without_chroms = sorted(tmp_exons)
+                exons_list = []
+                for exon in exons_list_without_chroms:
+                    if exon.data is None:
+                        exons_list.append(Interval(exon.begin, exon.end, chrom))
+                    else:
+                        exons_list.append(exon)
+            else:
+                exons_list = sorted(self.gene_to_exons[feature_id])
+                # exons_list = [self.id_to_coordinates[exon_interval.data] for exon_interval in sorted(self.gene_to_exons[feature_id])]
+            
+            #chrom = self.id_to_coordinates[self.gene_to_exons[feature_id][0].data].data
+            #chrom = None
+            #for exon in self.gene_to_exons[feature_id]:
+            #    chrom = self.id_to_coordinates[exon.data].data
+            #    break
+
+            for i in range(0, len(exons_list), N_per_row):
+                # exons_row = self.make_exons_row_from_virtual(exons_list[i:i+N_per_row], bams_list=bams_list, view_width=view_width, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, tighter_track=tighter_track)
+                # doc.elements.append(exons_row)
+                doc = self.make_exons_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, view_width=view_width, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, tighter_track=tighter_track)
+            return doc
+  
+
+
+     
+
+    def make_exons_row_from_virtual(self, doc, exons_list, bams_list, view_width,
+                                    strand = True,
+                                    padding_perc = 0.1, 
+                                    with_coverage = True,
+                                    with_TSS = True, 
+                                    include_secondary = False,
+                                    row = None, 
+                                    tighter_track = False):
+
+
+        if row is None:
+            row = genomeview.ViewRow("row")
+
+        total_exon_size = 0
+        left_bound = math.inf
+        right_bound = -math.inf
+        # chrom = None
+
+        smallest_exon_size = math.inf
+        for exon_interval in exons_list:
+            # chrom = self.id_to_coordinates[exon_interval.data].data
+            total_exon_size += exon_interval.end - exon_interval.begin
+            smallest_exon_size = min(smallest_exon_size, exon_interval.end - exon_interval.begin)
+            left_bound = min(left_bound, exon_interval.begin)
+            right_bound = max(right_bound, exon_interval.end)
+
+        padding = math.ceil(smallest_exon_size * padding_perc)
+        total_exon_size = total_exon_size + (padding * len(exons_list))
+
+        reserved_width = (len(exons_list) - 1) * row.space_between + doc.margin_x * 2
+        per_base_size = (view_width - reserved_width)/total_exon_size
+
+        max_coverage_dict = {}
+        virtual_bams_dict = {}
+        for key, value in bams_list.items():
+
+            virtual_bams_dict[key] = []
+            all_reads_for_coverage = set()
+
+            bam_refs = None
+            with pysam.AlignmentFile(value, "rb") as bam:
+                bam_refs = bam.references
+                for exon_interval in exons_list:
+                    for read in bam.fetch(exon_interval.data, exon_interval.begin, exon_interval.end):
+                        all_reads_for_coverage.add(read)
+
+                coverage_bam = genomeview.bamtrack.VirtualBAM(all_reads_for_coverage, bam_refs)
+                coverage_bam.index()
+
+                for read in coverage_bam.fetch():
+                    virtual_bams_dict[key].append(genomeview.bamtrack.VirtualBAM([read], bam_refs))
+                
+                max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
+        
+        for exon_interval in exons_list:
+            start = exon_interval.begin
+            end = exon_interval.end
+            chrom = exon_interval.data
+
+            exon_width = math.floor((exon_interval.end - exon_interval.begin + padding) * per_base_size)
+            exon_view = genomeview.GenomeView(chrom, start - padding, end + padding, strand, source=self.source)
+            exon_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
+            # BED type features
+            if self.annotation_path:
+                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.annotation_path)
+                virtual_bed.index(chrom, left_bound, right_bound, field_defs=None)
+                exon_view.add_track(virtual_bed)
+            if with_TSS and self.tss_path:
+                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.tss_path)
+                virtual_bed.index(chrom, left_bound, right_bound, fields_defs=None)
+                exon_view.add_track(virtual_bed)
+            
+            exon_view.add_track(genomeview.Axis())
+            for key, value in bams_list.items():
+                
+                if with_coverage:
+                    coverage_track = genomeview.BAMCoverageTrack(value, name=key)
+                    coverage_track.max_y = max_coverage_dict[key]
+                    exon_view.add_track(coverage_track)
+                for virtual_bam in virtual_bams_dict[key]:
+                    if tighter_track:
+                        bam_track = TighterSingleEndBAMTrack(virtual_bam, name=None, opener_fn=lambda x: x)
+                    else:
+                        bam_track = genomeview.bamtrack.SingleEndBAMTrack(virtual_bam, name=None, opener_fn=lambda x: x)
+                    if include_secondary:
+                        coverage_track.include_secondary = True
+                        bam_track.include_secondary = True
+                    exon_view.add_track(bam_track)
+            exon_view.pixel_width = exon_width
+            exon_view.margin_y = 0
+            row.add_view(exon_view)
+
+        doc.elements.append(row)
+        return doc
 
 
 
