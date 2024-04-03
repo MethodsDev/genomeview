@@ -349,7 +349,7 @@ class Configuration():
                      with_TSS = True,
                      include_secondary = False,
                      view_width = 1600, 
-                     squish_reads = False):
+                     tighter_track = False):
         return self.plot_interval(bams_list, 
                                   interval = self.id_to_coordinates[feature], 
                                   padding_perc = padding_perc,
@@ -357,7 +357,7 @@ class Configuration():
                                   with_TSS = with_TSS, 
                                   include_secondary = include_secondary,
                                   view_width = view_width, 
-                                  tighter_track = squish_reads)
+                                  tighter_track = tighter_track)
 
 
     # plot_feature for a list in tabs
