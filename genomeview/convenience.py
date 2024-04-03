@@ -120,8 +120,11 @@ class Configuration():
             self.index_gtf(gtf_path)
 
     def index_gtf(self, gtf_path):
-        self.transcript_to_gene = {}
+        self.gene_name_to_gene_id = {}
         self.gene_to_transcripts = {}
+        self.transcript_to_gene = {}
+        self.gene_to_exons = {}
+        self.transcript_to_exons = {}
         self.id_to_coordinates = {}
 
         with gzip.open(gtf_path, "r") as gtf_file:
@@ -131,21 +134,27 @@ class Configuration():
                     gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     gene_name = (entry.attributes.split(";")[2]).split(" ")[2].strip('"')
 
-                    # creating intermediates so that updating through either the gene_id or gene_name key will affect both
-                    gene_interval = Interval(entry.start, entry.end, entry.contig)
-                    transcripts_list = []
-
-                    self.id_to_coordinates[gene_id] = gene_interval
-                    self.id_to_coordinates[gene_name] = gene_interval
-                    self.gene_to_transcripts[gene_id] = transcripts_list
-                    self.gene_to_transcripts[gene_name] = transcripts_list
+                    self.gene_name_to_gene_id[gene_name] = gene_id
+                    self.id_to_coordinates[gene_id] = Interval(entry.start, entry.end, entry.contig)
+                    self.gene_to_transcripts[gene_id] = []
+                    self.gene_to_exons[gene_id] = IntervalTree()
 
                 elif entry.feature == "transcript":
                     gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
                     self.id_to_coordinates[transcript_id] = Interval(entry.start, entry.end, entry.contig)
-                    self.transcript_to_gene[transcript_id] = gene_id
                     self.gene_to_transcripts[gene_id].append(transcript_id)
+                    self.transcript_to_gene[transcript_id] = gene_id
+                    self.transcript_to_exons[transcript_id] = IntervalTree()
+
+                elif entry.feature == "exon":
+                    gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
+                    transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
+                    exon_id = (entry.attributes.split(";")[7]).split(" ")[2].strip('"')
+                    if exon_id not in self.id_to_coordinates:
+                        self.id_to_coordinates[exon_id] = Interval(entry.start, entry.end, entry.contig)
+                    self.gene_to_exons[gene_id].add(Interval(entry.start, entry.end, entry.contig))
+                    self.transcript_to_exons[transcript_id].add(Interval(entry.start, entry.end, entry.contig))
 
 
     def make_genomeview_row(self, start, end, chrom, strand, bams_list, 
