@@ -587,6 +587,7 @@ def _convertSVG_resvg(inpath, outpath):
 
 
 def _convertSVG_resvg_stdio(indata):
+    _checkRESVGConvert()
     try:
         if isinstance(indata, str):
             indata = indata.encode('utf-8')
