@@ -78,7 +78,9 @@ class GraphTrack(Track):
                 y1 = self.ytopixels(series.y[i])
                 y2 = self.ytopixels(series.y[i+1])
                 
-                yield from renderer.line(x1, y1, x2, y2, 
+                yield from renderer.line(x1, y1, x2, y1, 
+                    **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
+                yield from renderer.line(x2, y1, x2, y2, 
                     **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
 
         # since the labels are drawn at the top of the ticks, let's make sure the top tick/label is 
