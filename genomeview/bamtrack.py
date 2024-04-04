@@ -192,7 +192,7 @@ class SingleEndBAMTrack(IntervalTrack):
 
         if length > self.min_indel_size:
             curstart = self.scale.topixels(genome_position)
-            curend = self.scale.topixels(genome_position+length+1)
+            curend = self.scale.topixels(genome_position+length)
 
             if genome_position > self.scale.end: return
             if genome_position+length < self.scale.start: return
@@ -288,7 +288,7 @@ class SingleEndBAMTrack(IntervalTrack):
 
                 sequence_position += length
                 genome_position += length
-            elif code in [2,3]: #in "D":
+            elif code in [2,3]: #in "D" "N":
                 # if not self.mismatch_counts or self.mismatch_counts.query("DEL", genome_position, genome_position+length+1):
                 yield from self._draw_deletion(renderer, length, genome_position, yoffset)
 
