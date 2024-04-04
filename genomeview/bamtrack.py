@@ -710,10 +710,9 @@ class BAMCoverageTrack(GraphTrack):
                     counts[i] += 1
         
         x = np.arange(scale.start, scale.end+1)
-        y = []
+        y = np.empty(scale.end - scale.start + 1, dtype=int)
         for i, curx in enumerate(x):
-            y.append(counts[curx])
-        y = np.array(y)
+            y[i] = counts[curx]
         
         s = pd.Series(y, index=x).sort_index()
         s = s[(s!=s.shift(-1))|(s!=s.shift(1))]
