@@ -520,7 +520,7 @@ class Configuration():
             with pysam.AlignmentFile(value, "rb") as bam:
                 bam_refs = bam.references
                 for interval in intervals_list:
-                    for read in bam.fetch(interval.data, interval.begin, interval.end):
+                    for read in bam.fetch(interval.data, interval.begin - padding, interval.end + padding):
                         all_reads_for_coverage.add(read)
 
                 coverage_bam = genomeview.bamtrack.VirtualBAM(all_reads_for_coverage, bam_refs)
