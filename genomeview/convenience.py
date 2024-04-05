@@ -147,6 +147,13 @@ def interval_strand(self):
 Interval.strand = interval_strand
 
 
+def interval_data_reduce(current_data, new_data):
+    if current_data == new_data:
+        return current_data
+    else:
+        return None
+
+
 class Configuration():
     def __init__(self, genome_path, bed_annotation_path, gtf_annotation_path = None, tss_path = None):
         self.source = genomeview.genomesource.FastaGenomeSource(genome_path)
@@ -454,17 +461,9 @@ class Configuration():
             exons_list = sorted(self.transcript_to_exons[feature_id])
         elif feature_type == "gene":
             if merge_exons:
-                data = self.id_to_coordinates[feature_id].data # chrom + strand
                 tmp_exons = self.gene_to_exons[feature_id].copy()
-                tmp_exons.merge_overlaps()
-                # merging overlaps looses the .data information that contains the contig, so need to add it back
-                exons_list_without_chroms = sorted(tmp_exons)
-                exons_list = []
-                for exon in exons_list_without_chroms:
-                    if exon.data is None:
-                        exons_list.append(Interval(exon.begin, exon.end, data))
-                    else:
-                        exons_list.append(exon)
+                tmp_exons.merge_overlaps(data_reducer = interval_data_reduce)
+                exons_list = sorted(tmp_exons)
             else:
                 exons_list = sorted(self.gene_to_exons[feature_id])
 
