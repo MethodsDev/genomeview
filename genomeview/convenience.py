@@ -134,14 +134,14 @@ class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
 
 
 class Configuration():
-    def __init__(self, genome_path, annotation_path, gtf_path = None, tss_path = None):
+    def __init__(self, genome_path, bed_annotation_path, gtf_annotation_path = None, tss_path = None):
         self.source = genomeview.genomesource.FastaGenomeSource(genome_path)
-        self.annotation_path = annotation_path
+        self.bed_annotation_path = bed_annotation_path
         self.tss_path = tss_path
-        if gtf_path:
-            self.index_gtf(gtf_path)
+        if gtf_annotation_path:
+            self.index_gtf(gtf_annotation_path)
 
-    def index_gtf(self, gtf_path):
+    def index_gtf(self, gtf_annotation_path):
         self.gene_name_to_gene_id = {}
         self.gene_to_transcripts = {}
         self.transcript_to_gene = {}
@@ -149,7 +149,7 @@ class Configuration():
         self.transcript_to_exons = {}
         self.id_to_coordinates = {}
 
-        with gzip.open(gtf_path, "r") as gtf_file:
+        with gzip.open(gtf_annotation_path, "r") as gtf_file:
             current_gene_interval = None
             for entry in pysam.tabix_iterator(gtf_file, pysam.asGTF()):
                 if entry.feature == "gene":
@@ -192,8 +192,8 @@ class Configuration():
             row = genomeview.ViewRow("row")
         gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, strand, self.source)
         gene_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
-        if self.annotation_path:
-            gene_view.add_track(genomeview.BEDTrack(self.annotation_path, name="annot"))
+        if self.bed_annotation_path:
+            gene_view.add_track(genomeview.BEDTrack(self.bed_annotation_path, name="annot"))
         if with_TSS and self.tss_path:
             gene_view.add_track(genomeview.BEDTrack(self.tss_path, name="ref_TSS"))
         
@@ -529,7 +529,9 @@ class Configuration():
                 coverage_bam.index()
 
                 for read in coverage_bam.fetch():
-                    virtual_bams_dict[key].append(genomeview.bamtrack.VirtualBAM([read], bam_refs))
+                    bam_track = genomeview.bamtrack.VirtualBAM([read], bam_refs)
+                    bam_track.quick_consensus = False
+                    virtual_bams_dict[key].append(bam_track)
                 
                 max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
         
@@ -547,8 +549,8 @@ class Configuration():
             interval_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
             
             # BED type features
-            if self.annotation_path:
-                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.annotation_path)
+            if self.bed_annotation_path:
+                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation_path)
                 virtual_bed.index(chrom, left_bound, right_bound, field_defs=None)
                 interval_view.add_track(virtual_bed)
             if with_TSS and self.tss_path:
