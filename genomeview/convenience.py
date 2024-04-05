@@ -99,7 +99,7 @@ def get_regions_by_read_id(bam_file, read_id):
             if read.query_name != read_id:
                 continue
 
-            regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id)))
+            regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id) + "+" if read.is_forward else "-"))
 
     return(regions)
 
@@ -133,6 +133,19 @@ class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
         self.margin_y = 2
 
 
+@property
+def interval_chrom(self):
+    return self.data[:-1]
+
+Interval.chrom = interval_chrom
+
+@property
+def interval_strand(self):
+    return self.data[-1:]
+
+Interval.strand = interval_strand
+
+
 class Configuration():
     def __init__(self, genome_path, bed_annotation_path, gtf_annotation_path = None, tss_path = None):
         self.source = genomeview.genomesource.FastaGenomeSource(genome_path)
@@ -150,21 +163,21 @@ class Configuration():
         self.id_to_coordinates = {}
 
         with gzip.open(gtf_annotation_path, "r") as gtf_file:
-            current_gene_interval = None
+            # current_gene_interval = None
             for entry in pysam.tabix_iterator(gtf_file, pysam.asGTF()):
                 if entry.feature == "gene":
                     gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     gene_name = (entry.attributes.split(";")[2]).split(" ")[2].strip('"')
 
                     self.gene_name_to_gene_id[gene_name] = gene_id
-                    self.id_to_coordinates[gene_id] = Interval(entry.start, entry.end, entry.contig)
+                    self.id_to_coordinates[gene_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
                     self.gene_to_transcripts[gene_id] = []
                     self.gene_to_exons[gene_id] = IntervalTree()
 
                 elif entry.feature == "transcript":
                     gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
-                    self.id_to_coordinates[transcript_id] = Interval(entry.start, entry.end, entry.contig)
+                    self.id_to_coordinates[transcript_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
                     self.gene_to_transcripts[gene_id].append(transcript_id)
                     self.transcript_to_gene[transcript_id] = gene_id
                     self.transcript_to_exons[transcript_id] = IntervalTree()
@@ -174,9 +187,9 @@ class Configuration():
                     transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
                     exon_id = (entry.attributes.split(";")[7]).split(" ")[2].strip('"')
                     if exon_id not in self.id_to_coordinates:
-                        self.id_to_coordinates[exon_id] = Interval(entry.start, entry.end, entry.contig)
-                    self.gene_to_exons[gene_id].add(Interval(entry.start, entry.end, entry.contig))
-                    self.transcript_to_exons[transcript_id].add(Interval(entry.start, entry.end, entry.contig))
+                        self.id_to_coordinates[exon_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
+                    self.gene_to_exons[gene_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
+                    self.transcript_to_exons[transcript_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
 
 
     def make_genomeview_row(self, start, end, chrom, strand, bams_list, 
@@ -190,8 +203,8 @@ class Configuration():
 
         if row is None:
             row = genomeview.ViewRow("row")
-        gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, strand, self.source)
-        gene_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
+        gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, "+", self.source)
+        gene_view.add_track(genomeview.track.TrackLabel(chrom + strand + " : " + str(start - padding) + " - " + str(end + padding)))
         if self.bed_annotation_path:
             gene_view.add_track(genomeview.BEDTrack(self.bed_annotation_path, name="annot"))
         if with_TSS and self.tss_path:
@@ -228,8 +241,8 @@ class Configuration():
             start = data[1].begin
             end = data[1].end
         elif interval is not None:
-            chrom = interval.data
-            strand = True
+            chrom = interval.chrom
+            strand = interval.strand
             start = interval.begin
             end  = interval.end
         else:
@@ -258,8 +271,8 @@ class Configuration():
 
         if interval_list is not None:
             for interval in interval_list:
-                chrom = interval.data
-                strand = True
+                chrom = interval.chrom
+                strand = interval.strand
                 start = interval.begin
                 end  = interval.end
                 
@@ -299,13 +312,13 @@ class Configuration():
                       tighter_track = False):
         doc = genomeview.Document(view_width)
         return self.add_single_view_row_to_plot(doc, bams_list, 
-                                           interval = interval, 
-                                           data = data, 
-                                           padding_perc = padding_perc,
-                                           with_coverage = with_coverage,
-                                           with_TSS = with_TSS, 
-                                           include_secondary = include_secondary,
-                                           tighter_track = tighter_track)
+                                                interval = interval, 
+                                                data = data, 
+                                                padding_perc = padding_perc,
+                                                with_coverage = with_coverage,
+                                                with_TSS = with_TSS, 
+                                                include_secondary = include_secondary,
+                                                tighter_track = tighter_track)
 
 
     def plot_intervals(self, bams_list, 
@@ -387,7 +400,7 @@ class Configuration():
             for read in bam_in.fetch():
                 if read.query_name != read_id:
                     continue
-                regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id)))
+                regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id) + "+" if read.is_forward else "-"))
             
         if len(regions) == 0:
             print("Error: read either not found or not aligned")
@@ -440,7 +453,7 @@ class Configuration():
             exons_list = sorted(self.transcript_to_exons[feature_id])
         elif feature_type == "gene":
             if merge_exons:
-                chrom = self.id_to_coordinates[feature_id].data
+                data = self.id_to_coordinates[feature_id].data # chrom + strand
                 tmp_exons = self.gene_to_exons[feature_id].copy()
                 tmp_exons.merge_overlaps()
                 # merging overlaps looses the .data information that contains the contig, so need to add it back
@@ -448,7 +461,7 @@ class Configuration():
                 exons_list = []
                 for exon in exons_list_without_chroms:
                     if exon.data is None:
-                        exons_list.append(Interval(exon.begin, exon.end, chrom))
+                        exons_list.append(Interval(exon.begin, exon.end, data))
                     else:
                         exons_list.append(exon)
             else:
@@ -479,7 +492,6 @@ class Configuration():
      
 
     def make_intervals_row_from_virtual(self, doc, intervals_list, bams_list,
-                                        strand = True,
                                         padding_perc = 0.1, 
                                         with_coverage = True,
                                         with_TSS = True, 
@@ -520,7 +532,7 @@ class Configuration():
             with pysam.AlignmentFile(value, "rb") as bam:
                 bam_refs = bam.references
                 for interval in intervals_list:
-                    for read in bam.fetch(interval.data, interval.begin - padding, interval.end + padding):
+                    for read in bam.fetch(interval.chrom, interval.begin - padding, interval.end + padding):
                         if not include_secondary and read.is_secondary:
                             continue
                         all_reads_for_coverage.add(read)
@@ -538,14 +550,15 @@ class Configuration():
         for interval in intervals_list:
             start = interval.begin
             end = interval.end
-            chrom = interval.data
+            chrom = interval.chrom
+            strand = interval.strand
             
             if normalize_interval_width:
                 padding = math.ceil((end - start) * padding_perc)
                 interval_width = (doc.width - reserved_width)/len(intervals_list)
             else:
                 interval_width = math.floor((interval.end - interval.begin + padding) * per_base_size)
-            interval_view = genomeview.GenomeView(chrom, start - padding, end + padding, strand, source=self.source)
+            interval_view = genomeview.GenomeView(chrom, start - padding, end + padding, "+", source=self.source)
             interval_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
             
             # BED type features
