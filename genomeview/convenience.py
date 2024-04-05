@@ -133,6 +133,7 @@ class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
         self.margin_y = 2
 
 
+# adding chrom and strand accessors for Interval from data slot based on the usage made in the code below
 @property
 def interval_chrom(self):
     return self.data[:-1]
@@ -204,7 +205,7 @@ class Configuration():
         if row is None:
             row = genomeview.ViewRow("row")
         gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, "+", self.source)
-        gene_view.add_track(genomeview.track.TrackLabel(chrom + strand + " : " + str(start - padding) + " - " + str(end + padding)))
+        gene_view.add_track(genomeview.track.TrackLabel(chrom + " : " + str(start - padding) + " - " + str(end + padding)))
         if self.bed_annotation_path:
             gene_view.add_track(genomeview.BEDTrack(self.bed_annotation_path, name="annot"))
         if with_TSS and self.tss_path:
