@@ -486,9 +486,69 @@ class Configuration():
             for i in range(0, len(exons_list), N_per_row):
                doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
             return doc
-  
 
 
+
+    def plot_splice_junctions(self, feature_to_plot, bams_list,
+                              padding_perc = 0.05, 
+                              with_coverage = True, 
+                              with_TSS = False, 
+                              include_secondary = False, 
+                              view_width = 1600,
+                              normalize_interval_width = False,
+                              as_widget = False,
+                              tighter_track = False):
+
+        feature_id = None
+        feature_type = None
+        if feature_to_plot in self.gene_name_to_gene_id:
+            feature_id = self.gene_name_to_gene_id[feature_to_plot]
+            feature_type = "gene"
+        elif feature_to_plot in self.gene_to_exons:
+            feature_id = feature_to_plot
+            feature_type = "gene"
+        elif feature_to_plot in self.transcript_to_exons:
+            feature_id = feature_to_plot
+            feature_type = "transcript"
+        elif feature_to_plot in self.id_to_coordinates:
+            print("Error, feature type provided is an exon, hence there is no splice junction within it.")
+            return
+
+        exons_pairs = []
+        if feature_type == "transcript":
+            all_exons = sorted(self.transcript_to_exons[feature_id])
+            for i in range(1, len(all_exons)):
+                exons_pairs.append((all_exons[i-1], all_exons[i]))
+
+        elif feature_type == "gene":
+            for transcript_id in self.gene_to_transcripts[feature_id]:
+                all_exons = sorted(self.transcript_to_exons[transcript_id])
+                for i in range(1, len(all_exons)):
+                    exons_pairs.append((all_exons[i-1], all_exons[i]))
+
+        if len(exons_pairs) == 0:
+            print("No splice junctions for the requested feature, this probably means it only has 1 exon")
+            return
+
+        if as_widget:
+            all_views = []
+            all_titles = []
+            for pair in exons_pairs:
+                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+                all_views.append(widgets.HTML(doc._repr_svg_()))
+                # all_views.append(doc.get_widget())
+                all_titles.append("Splice junction btw: exon:: " + pair[0].data + ":" + str(pair[0].begin) + "-" + str(pair[0].end) + " and exon::" + pair[1].data + " : " + str(pair[1].begin) + " - " + str(pair[1].end))
+
+            stack = widgets.Stack(all_views, selected_index=0)
+            dropdown = widgets.Dropdown(options=all_titles)
+            widgets.jslink((dropdown, 'index'), (stack, 'selected_index'))
+            return(widgets.VBox([dropdown, stack]))
+
+        else:
+            doc = genomeview.Document(view_width)
+            for pair in exons_pairs:
+               doc = self.make_intervals_row_from_virtual(doc, pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+            return doc
      
 
     def make_intervals_row_from_virtual(self, doc, intervals_list, bams_list,
