@@ -132,6 +132,14 @@ class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
         self.row_height = 3
         self.margin_y = 2
 
+def color_from_bed(interval):
+    if interval.tx.color:
+        # hex_colors = interval.tx.color.split(",")
+        # return "#{0:02x}{1:02x}{2:02x}".format(int(hex_colors[0]), int(hex_colors[1]), int(hex_colors[2]))
+        return "rgb(" + interval.tx.color + ")"
+    else:
+        return "#E89E9D"
+
 
 # adding chrom and strand accessors for Interval from data slot based on the usage made in the code below
 @property
@@ -155,11 +163,12 @@ def interval_data_reduce(current_data, new_data):
 
 
 class Configuration():
-    def __init__(self, genome_path, bed_annotation_path, gtf_annotation_path = None, tss_path = None):
+    def __init__(self, genome_path, bed_annotation_path, gtf_annotation_path = None, bed_color_fn=color_from_bed):
         self.source = genomeview.genomesource.FastaGenomeSource(genome_path)
         self.bed_annotation_path = bed_annotation_path
         if gtf_annotation_path:
             self.index_gtf(gtf_annotation_path)
+        self.bed_color_fn = bed_color_fn
 
     def index_gtf(self, gtf_annotation_path):
         self.gene_name_to_gene_id = {}
@@ -204,16 +213,16 @@ class Configuration():
             if type(self.bed_annotation_path) is list:
                 for bed_path in bed_annotation_path:
                     bed_track = genomeview.BEDTrack(bed_path, name="annot")
-                    bed_track.color_fn = self.color_fn
+                    bed_track.color_fn = self.bed_color_fn
                     view.add_track(bed_track)
             elif type(self.bed_annotation_path) is dict:
                 for bed_name, bed_path in self.bed_annotation_path.items():
                     bed_track = genomeview.BEDTrack(bed_path, name=bed_name)
-                    bed_track.color_fn = self.color_fn
+                    bed_track.color_fn = self.bed_color_fn
                     view.add_track(bed_track)
             else:
                 bed_track = genomeview.BEDTrack(self.bed_annotation_path, name="annot")
-                bed_track.color_fn = self.color_fn
+                bed_track.color_fn = self.bed_color_fn
                 view.add_track(bed_track)
 
 
@@ -223,18 +232,18 @@ class Configuration():
                 for bed_path in self.bed_annotation_path:
                     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name="annot")
                     virtual_bed.index(chrom, start, end, field_defs=None)
-                    virtual_bed.color_fn = self.color_fn
+                    virtual_bed.color_fn = self.bed_color_fn
                     view.add_track(virtual_bed)
             elif type(self.bed_annotation_path) is dict:
                 for bed_name, bed_path in self.bed_annotation_path.items():
                     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name=bed_name)
                     virtual_bed.index(chrom, start, end, field_defs=None)
-                    virtual_bed.color_fn = self.color_fn
+                    virtual_bed.color_fn = self.bed_color_fn
                     view.add_track(virtual_bed)
             else:
                 virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation_path, name="annot")
                 virtual_bed.index(chrom, start, end, field_defs=None)
-                virtual_bed.color_fn = self.color_fn
+                virtual_bed.color_fn = self.bed_color_fn
                 view.add_track(virtual_bed)
 
 
