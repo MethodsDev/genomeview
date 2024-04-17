@@ -158,7 +158,6 @@ class Configuration():
     def __init__(self, genome_path, bed_annotation_path, gtf_annotation_path = None, tss_path = None):
         self.source = genomeview.genomesource.FastaGenomeSource(genome_path)
         self.bed_annotation_path = bed_annotation_path
-        self.tss_path = tss_path
         if gtf_annotation_path:
             self.index_gtf(gtf_annotation_path)
 
@@ -200,10 +199,48 @@ class Configuration():
                     self.transcript_to_exons[transcript_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
 
 
+    def add_bed_tracks_to_view(self, view):
+        if self.bed_annotation_path:
+            if type(self.bed_annotation_path) is list:
+                for bed_path in bed_annotation_path:
+                    bed_track = genomeview.BEDTrack(bed_path, name="annot")
+                    bed_track.color_fn = self.color_fn
+                    view.add_track(bed_track)
+            elif type(self.bed_annotation_path) is dict:
+                for bed_name, bed_path in self.bed_annotation_path.items():
+                    bed_track = genomeview.BEDTrack(bed_path, name=bed_name)
+                    bed_track.color_fn = self.color_fn
+                    view.add_track(bed_track)
+            else:
+                bed_track = genomeview.BEDTrack(self.bed_annotation_path, name="annot")
+                bed_track.color_fn = self.color_fn
+                view.add_track(bed_track)
+
+
+    def add_virtualbed_tracks_to_view(self, view, chrom, start, end):
+        if self.bed_annotation_path:
+            if type(self.bed_annotation_path) is list:
+                for bed_path in self.bed_annotation_path:
+                    virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name="annot")
+                    virtual_bed.index(chrom, start, end, field_defs=None)
+                    virtual_bed.color_fn = self.color_fn
+                    view.add_track(virtual_bed)
+            elif type(self.bed_annotation_path) is dict:
+                for bed_name, bed_path in self.bed_annotation_path.items():
+                    virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name=bed_name)
+                    virtual_bed.index(chrom, start, end, field_defs=None)
+                    virtual_bed.color_fn = self.color_fn
+                    view.add_track(virtual_bed)
+            else:
+                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation_path, name="annot")
+                virtual_bed.index(chrom, start, end, field_defs=None)
+                virtual_bed.color_fn = self.color_fn
+                view.add_track(virtual_bed)
+
+
     def make_genomeview_row(self, start, end, chrom, strand, bams_list, 
                             padding_perc = 0.1, 
                             with_coverage = True,
-                            with_TSS = True, 
                             include_secondary = False,
                             row = None, 
                             tighter_track = False):
@@ -213,11 +250,9 @@ class Configuration():
             row = genomeview.ViewRow("row")
         gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, "+", self.source)
         gene_view.add_track(genomeview.track.TrackLabel(chrom + " : " + str(start - padding) + " - " + str(end + padding)))
-        if self.bed_annotation_path:
-            gene_view.add_track(genomeview.BEDTrack(self.bed_annotation_path, name="annot"))
-        if with_TSS and self.tss_path:
-            gene_view.add_track(genomeview.BEDTrack(self.tss_path, name="ref_TSS"))
-        
+
+        self.add_bed_tracks_to_view(gene_view)
+
         gene_view.add_track(genomeview.Axis())
         for key, value in bams_list.items():
             if with_coverage:
@@ -240,7 +275,6 @@ class Configuration():
                                     data = None, 
                                     padding_perc = 0.1,
                                     with_coverage = True,
-                                    with_TSS=True, 
                                     include_secondary = False,
                                     tighter_track = False):
         if data is not None:
@@ -259,7 +293,6 @@ class Configuration():
         row = self.make_genomeview_row(start, end, chrom, strand, bams_list, 
                                        padding_perc = padding_perc, 
                                        with_coverage = with_coverage,
-                                       with_TSS = with_TSS, 
                                        include_secondary = include_secondary,
                                        row = None, 
                                        tighter_track = tighter_track)
@@ -272,7 +305,6 @@ class Configuration():
                                    data_list = None,
                                    padding_perc = 0.1,
                                    with_coverage = True,
-                                   with_TSS = True, 
                                    include_secondary = False,
                                    tighter_track = False):
         row = genomeview.ViewRow("row")
@@ -287,7 +319,6 @@ class Configuration():
                 self.make_genomeview_row(start, end, chrom, strand, bams_list, 
                                          padding_perc = padding_perc, 
                                          with_coverage = with_coverage,
-                                         with_TSS = with_TSS, 
                                          include_secondary = include_secondary,
                                          row = row, 
                                          tighter_track = tighter_track)
@@ -301,7 +332,6 @@ class Configuration():
                 self.make_genomeview_row(start, end, chrom, strand, bams_list, 
                                          padding_perc = padding_perc,
                                          with_coverage = with_coverage,
-                                         with_TSS = with_TSS, 
                                          include_secondary = include_secondary,
                                          row = row, 
                                          tighter_track = tighter_track)
@@ -314,7 +344,6 @@ class Configuration():
                       data = None, 
                       padding_perc = 0.1,
                       with_coverage = True,
-                      with_TSS = True, 
                       include_secondary = False,
                       view_width = 1600, 
                       tighter_track = False):
@@ -324,7 +353,6 @@ class Configuration():
                                                 data = data, 
                                                 padding_perc = padding_perc,
                                                 with_coverage = with_coverage,
-                                                with_TSS = with_TSS, 
                                                 include_secondary = include_secondary,
                                                 tighter_track = tighter_track)
 
@@ -335,7 +363,6 @@ class Configuration():
                        N_per_row = 1, 
                        padding_perc = 0.1,
                        with_coverage = True,
-                       with_TSS = True, 
                        include_secondary = False,
                        view_width = 1600,
                        tighter_track = False):
@@ -348,7 +375,6 @@ class Configuration():
                                                       data_list = None, 
                                                       padding_perc = padding_perc,
                                                       with_coverage = with_coverage,
-                                                      with_TSS = with_TSS, 
                                                       include_secondary = include_secondary,
                                                       tighter_track = tighter_track)
         elif data_list is not None:
@@ -358,7 +384,6 @@ class Configuration():
                                                       data_list = data_list[i:i+N_per_row], 
                                                       padding_perc = padding_perc, 
                                                       with_coverage = with_coverage,
-                                                      with_TSS = with_TSS, 
                                                       include_secondary = include_secondary,
                                                       tighter_track = tighter_track)
         return doc
@@ -367,7 +392,6 @@ class Configuration():
     def plot_feature(self, feature, bams_list, 
                      padding_perc = 0.1,
                      with_coverage = True,
-                     with_TSS = True,
                      include_secondary = False,
                      view_width = 1600, 
                      tighter_track = False):
@@ -375,7 +399,6 @@ class Configuration():
                                   interval = self.id_to_coordinates[feature], 
                                   padding_perc = padding_perc,
                                   with_coverage = with_coverage,
-                                  with_TSS = with_TSS, 
                                   include_secondary = include_secondary,
                                   view_width = view_width, 
                                   tighter_track = tighter_track)
@@ -430,8 +453,7 @@ class Configuration():
 
     def plot_exons(self, feature_to_plot, bams_list, merge_exons = True,
                    padding_perc = 0.05, 
-                   with_coverage = True, 
-                   with_TSS = False, 
+                   with_coverage = True,
                    include_secondary = False, 
                    view_width = 1600,
                    normalize_interval_width = False,
@@ -455,7 +477,7 @@ class Configuration():
             feature_type = "exon"
         
         if feature_type == "exon":
-            return self.plot_feature(feature_id, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, view_width=view_width, tighter_track=tighter_track)
+            return self.plot_feature(feature_id, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, view_width=view_width, tighter_track=tighter_track)
 
         elif feature_type == "transcript":
             exons_list = sorted(self.transcript_to_exons[feature_id])
@@ -471,7 +493,7 @@ class Configuration():
             all_views = []
             all_titles = []
             for exon in exons_list:
-                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), [exon], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), [exon], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
                 all_views.append(widgets.HTML(doc._repr_svg_()))
                 # all_views.append(doc.get_widget())
                 all_titles.append("Exon:: " + exon.data + " : " + str(exon.begin) + " - " + str(exon.end))
@@ -484,15 +506,14 @@ class Configuration():
         else:
             doc = genomeview.Document(view_width)
             for i in range(0, len(exons_list), N_per_row):
-               doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+               doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
             return doc
 
 
 
     def plot_splice_junctions(self, feature_to_plot, bams_list,
                               padding_perc = 0.05, 
-                              with_coverage = True, 
-                              with_TSS = False, 
+                              with_coverage = True,
                               include_secondary = False, 
                               view_width = 1600,
                               normalize_interval_width = False,
@@ -534,7 +555,7 @@ class Configuration():
             all_views = []
             all_titles = []
             for pair in exons_pairs:
-                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
                 all_views.append(widgets.HTML(doc._repr_svg_()))
                 # all_views.append(doc.get_widget())
                 all_titles.append("Splice junction btw: exon:: " + pair[0].data + ":" + str(pair[0].begin) + "-" + str(pair[0].end) + " and exon::" + pair[1].data + " : " + str(pair[1].begin) + " - " + str(pair[1].end))
@@ -547,14 +568,13 @@ class Configuration():
         else:
             doc = genomeview.Document(view_width)
             for pair in exons_pairs:
-               doc = self.make_intervals_row_from_virtual(doc, pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, with_TSS=with_TSS, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+               doc = self.make_intervals_row_from_virtual(doc, pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
             return doc
      
 
     def make_intervals_row_from_virtual(self, doc, intervals_list, bams_list,
                                         padding_perc = 0.1, 
                                         with_coverage = True,
-                                        with_TSS = True, 
                                         include_secondary = False,
                                         row = None, 
                                         normalize_interval_width = False,
@@ -622,14 +642,15 @@ class Configuration():
             interval_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
             
             # BED type features
-            if self.bed_annotation_path:
-                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation_path)
-                virtual_bed.index(chrom, left_bound, right_bound, field_defs=None)
-                interval_view.add_track(virtual_bed)
-            if with_TSS and self.tss_path:
-                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.tss_path)
-                virtual_bed.index(chrom, left_bound, right_bound, fields_defs=None)
-                interval_view.add_track(virtual_bed)
+            self.add_virtualbed_tracks_to_view(interval_view, chrom, left_bound, right_bound)
+            # if self.bed_annotation_path:
+            #     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation_path)
+            #     virtual_bed.index(chrom, left_bound, right_bound, field_defs=None)
+            #     interval_view.add_track(virtual_bed)
+            # if with_TSS and self.tss_path:
+            #     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.tss_path)
+            #     virtual_bed.index(chrom, left_bound, right_bound, fields_defs=None)
+            #     interval_view.add_track(virtual_bed)
             
             interval_view.add_track(genomeview.Axis())
             for key, value in bams_list.items():
