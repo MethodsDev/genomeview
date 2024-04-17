@@ -560,6 +560,10 @@ class Configuration():
             print("No splice junctions for the requested feature, this probably means it only has 1 exon")
             return
 
+        seen = set()
+        seen_add = seen.add
+        exons_pairs = [x for x in exons_pairs if not (x in seen or seen_add(x))]
+
         if as_widget:
             all_views = []
             all_titles = []
