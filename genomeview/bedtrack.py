@@ -13,9 +13,11 @@ DEFAULT_FIELD_DEFS = {
     "strand":5,
     "coding_start":6,
     "coding_end":7,
+    "color":8,
     "exon_lengths":10,
     "exon_starts":11,
 }
+
 
 class Transcript:
     def __init__(self, chrom, start, end, strand="+", name=None, coding_start=None,
