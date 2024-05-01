@@ -87,9 +87,9 @@ class Document:
         else: # "svg"
             return widgets.HTML(self._repr_svg_())
 
-    def save_html(self, out_path, outformat="png", title=""):
-        view = self.get_widget(format=outformat)
-        embed_minimal_html(out_path, views=view, state=dependency_state(view), title=title)
+    def render_html(self, output_path, outformat="png", title=""):
+        view = self.get_widget(outformat=outformat)
+        embed_minimal_html(output_path, views=view, state=dependency_state(view), title=title)
 
 
 class ViewRow:

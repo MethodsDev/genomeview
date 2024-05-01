@@ -163,14 +163,14 @@ def interval_data_reduce(current_data, new_data):
 
 
 class Configuration():
-    def __init__(self, genome_path, bed_annotation_path, gtf_annotation_path = None, bed_color_fn=color_from_bed):
-        self.source = genomeview.genomesource.FastaGenomeSource(genome_path)
-        self.bed_annotation_path = bed_annotation_path
-        if gtf_annotation_path:
-            self.index_gtf(gtf_annotation_path)
+    def __init__(self, genome_fasta, bed_annotation, gtf_annotation = None, bed_color_fn=color_from_bed):
+        self.source = genomeview.genomesource.FastaGenomeSource(genome_fasta)
+        self.bed_annotation = bed_annotation
+        if gtf_annotation:
+            self.index_gtf(gtf_annotation)
         self.bed_color_fn = bed_color_fn
 
-    def index_gtf(self, gtf_annotation_path):
+    def index_gtf(self, gtf_annotation):
         self.gene_name_to_gene_id = {}
         self.gene_to_transcripts = {}
         self.transcript_to_gene = {}
@@ -178,7 +178,7 @@ class Configuration():
         self.transcript_to_exons = {}
         self.id_to_coordinates = {}
 
-        with gzip.open(gtf_annotation_path, "r") as gtf_file:
+        with gzip.open(gtf_annotation, "r") as gtf_file:
             # current_gene_interval = None
             for entry in pysam.tabix_iterator(gtf_file, pysam.asGTF()):
                 if entry.feature == "gene":
@@ -209,39 +209,39 @@ class Configuration():
 
 
     def add_bed_tracks_to_view(self, view):
-        if self.bed_annotation_path:
-            if type(self.bed_annotation_path) is list:
-                for bed_path in bed_annotation_path:
-                    bed_track = genomeview.BEDTrack(bed_path, name="annot")
+        if self.bed_annotation:
+            if type(self.bed_annotation) is list:
+                for bed_path in bed_annotation:
+                    bed_track = genomeview.BEDTrack(bed_path)
                     bed_track.color_fn = self.bed_color_fn
                     view.add_track(bed_track)
-            elif type(self.bed_annotation_path) is dict:
-                for bed_name, bed_path in self.bed_annotation_path.items():
+            elif type(self.bed_annotation) is dict:
+                for bed_name, bed_path in self.bed_annotation.items():
                     bed_track = genomeview.BEDTrack(bed_path, name=bed_name)
                     bed_track.color_fn = self.bed_color_fn
                     view.add_track(bed_track)
             else:
-                bed_track = genomeview.BEDTrack(self.bed_annotation_path, name="annot")
+                bed_track = genomeview.BEDTrack(self.bed_annotation)
                 bed_track.color_fn = self.bed_color_fn
                 view.add_track(bed_track)
 
 
     def add_virtualbed_tracks_to_view(self, view, chrom, start, end):
-        if self.bed_annotation_path:
-            if type(self.bed_annotation_path) is list:
-                for bed_path in self.bed_annotation_path:
-                    virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name="annot")
+        if self.bed_annotation:
+            if type(self.bed_annotation) is list:
+                for bed_path in self.bed_annotation:
+                    virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path)
                     virtual_bed.index(chrom, start, end, field_defs=None)
                     virtual_bed.color_fn = self.bed_color_fn
                     view.add_track(virtual_bed)
-            elif type(self.bed_annotation_path) is dict:
-                for bed_name, bed_path in self.bed_annotation_path.items():
+            elif type(self.bed_annotation) is dict:
+                for bed_name, bed_path in self.bed_annotation.items():
                     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name=bed_name)
                     virtual_bed.index(chrom, start, end, field_defs=None)
                     virtual_bed.color_fn = self.bed_color_fn
                     view.add_track(virtual_bed)
             else:
-                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation_path, name="annot")
+                virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation)
                 virtual_bed.index(chrom, start, end, field_defs=None)
                 virtual_bed.color_fn = self.bed_color_fn
                 view.add_track(virtual_bed)
@@ -397,6 +397,25 @@ class Configuration():
                                                       tighter_track = tighter_track)
         return doc
 
+    def get_feature_info(self, feature):
+        feature_id = None
+        feature_type = None
+        if feature in self.gene_name_to_gene_id:
+            feature_id = self.gene_name_to_gene_id[feature]
+            feature_type = "gene"
+        elif feature in self.gene_to_exons:
+            feature_id = feature
+            feature_type = "gene"
+        elif feature in self.transcript_to_exons:
+            feature_id = feature
+            feature_type = "transcript"
+        elif feature in self.id_to_coordinates:
+            feature_id = feature
+            feature_type = "exon"
+        
+        return(feature_id, feature_type)
+
+
 
     def plot_feature(self, feature, bams_list, 
                      padding_perc = 0.1,
@@ -404,8 +423,11 @@ class Configuration():
                      include_secondary = False,
                      view_width = 1600, 
                      tighter_track = False):
+
+        (feature_id, feature_type) = self.get_feature_info(feature)
+
         return self.plot_interval(bams_list, 
-                                  interval = self.id_to_coordinates[feature], 
+                                  interval = self.id_to_coordinates[feature_id], 
                                   padding_perc = padding_perc,
                                   with_coverage = with_coverage,
                                   include_secondary = include_secondary,
@@ -460,7 +482,7 @@ class Configuration():
 
 
 
-    def plot_exons(self, feature_to_plot, bams_list, merge_exons = True,
+    def plot_exons(self, feature, bams_list, merge_exons = True,
                    padding_perc = 0.05, 
                    with_coverage = True,
                    include_secondary = False, 
@@ -470,20 +492,7 @@ class Configuration():
                    as_widget = False,
                    tighter_track = False):
 
-        feature_id = None
-        feature_type = None
-        if feature_to_plot in self.gene_name_to_gene_id:
-            feature_id = self.gene_name_to_gene_id[feature_to_plot]
-            feature_type = "gene"
-        elif feature_to_plot in self.gene_to_exons:
-            feature_id = feature_to_plot
-            feature_type = "gene"
-        elif feature_to_plot in self.transcript_to_exons:
-            feature_id = feature_to_plot
-            feature_type = "transcript"
-        elif feature_to_plot in self.id_to_coordinates:
-            feature_id = feature_to_plot
-            feature_type = "exon"
+        (feature_id, feature_type) = self.get_feature_info(feature)
         
         if feature_type == "exon":
             return self.plot_feature(feature_id, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, view_width=view_width, tighter_track=tighter_track)
@@ -520,7 +529,7 @@ class Configuration():
 
 
 
-    def plot_splice_junctions(self, feature_to_plot, bams_list,
+    def plot_splice_junctions(self, feature, bams_list,
                               padding_perc = 0.05, 
                               with_coverage = True,
                               include_secondary = False, 
@@ -529,18 +538,9 @@ class Configuration():
                               as_widget = False,
                               tighter_track = False):
 
-        feature_id = None
-        feature_type = None
-        if feature_to_plot in self.gene_name_to_gene_id:
-            feature_id = self.gene_name_to_gene_id[feature_to_plot]
-            feature_type = "gene"
-        elif feature_to_plot in self.gene_to_exons:
-            feature_id = feature_to_plot
-            feature_type = "gene"
-        elif feature_to_plot in self.transcript_to_exons:
-            feature_id = feature_to_plot
-            feature_type = "transcript"
-        elif feature_to_plot in self.id_to_coordinates:
+        (feature_id, feature_type) = self.get_feature_info(feature)
+        
+        if feature_type == "exon":
             print("Error, feature type provided is an exon, hence there is no splice junction within it.")
             return
 
@@ -656,15 +656,7 @@ class Configuration():
             
             # BED type features
             self.add_virtualbed_tracks_to_view(interval_view, chrom, left_bound, right_bound)
-            # if self.bed_annotation_path:
-            #     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation_path)
-            #     virtual_bed.index(chrom, left_bound, right_bound, field_defs=None)
-            #     interval_view.add_track(virtual_bed)
-            # if with_TSS and self.tss_path:
-            #     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.tss_path)
-            #     virtual_bed.index(chrom, left_bound, right_bound, fields_defs=None)
-            #     interval_view.add_track(virtual_bed)
-            
+
             interval_view.add_track(genomeview.Axis())
             for key, value in bams_list.items():
                 
