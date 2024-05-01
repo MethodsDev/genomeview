@@ -260,19 +260,26 @@ class Configuration():
         if row is None:
             row = genomeview.ViewRow("row")
         gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, "+", self.source)
+        # gene_view = genomeview.GenomeView(chrom, start - padding, end + padding, "+", self.source)
         gene_view.add_track(genomeview.track.TrackLabel(chrom + " : " + str(start - padding) + " - " + str(end + padding)))
 
         self.add_bed_tracks_to_view(gene_view)
 
         gene_view.add_track(genomeview.Axis())
         for key, value in bams_list.items():
+            if isinstance(value, genomeview.VirtualBAM):
+                opener_kwargs = {'opener_fn': lambda x: x}
+            else:
+                opener_kwargs = {}
+
+
             if with_coverage:
-                coverage_track = genomeview.BAMCoverageTrack(value, name=key)
+                coverage_track = genomeview.BAMCoverageTrack(value, name=key, **opener_kwargs)
                 gene_view.add_track(coverage_track)
             if tighter_track:
-                bam_track = TighterSingleEndBAMTrack(value, name=key)
+                bam_track = TighterSingleEndBAMTrack(value, name=key, **opener_kwargs)
             else:
-                bam_track = genomeview.SingleEndBAMTrack(value, name=key)
+                bam_track = genomeview.SingleEndBAMTrack(value, name=key, **opener_kwargs)
             if include_secondary:
                 coverage_track.include_secondary = True
                 bam_track.include_secondary = True
@@ -459,13 +466,16 @@ class Configuration():
     def plot_read(self, read_id, bam, **kwargs):
 
         regions = []
+        virtual_bams = []
 
         with pysam.AlignmentFile(bam, "rb") as bam_in:
+            bam_refs = bam_in.references
             for read in bam_in.fetch():
                 if read.query_name != read_id:
                     continue
-                regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id) + "+" if read.is_forward else "-"))
-            
+                regions.append(Interval(read.reference_start, read.reference_end, read.reference_name + ("+" if read.is_forward else "-")))
+                virtual_bams.append(genomeview.VirtualBAM([read], bam_refs))
+        
         if len(regions) == 0:
             print("Error: read either not found or not aligned")
             return -1
@@ -477,8 +487,8 @@ class Configuration():
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
 
         all_widgets = []
-        for region in regions:
-            all_widgets.append(self.plot_interval(bams_list={"bam": bam}, interval=region).get_widget(), **filtered_kwargs)
+        for region, virtual_bam in zip(regions, virtual_bams):
+            all_widgets.append(self.plot_interval(bams_list={"read": virtual_bam}, interval=region).get_widget(), **filtered_kwargs)
 
         return widgets.VBox(all_widgets)
 
