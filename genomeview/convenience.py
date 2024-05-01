@@ -5,6 +5,7 @@ import os
 import pysam
 import inspect
 import ipywidgets as widgets
+import re
 
 from intervaltree import Interval, IntervalTree
 
@@ -162,6 +163,7 @@ def interval_data_reduce(current_data, new_data):
         return None
 
 
+
 class Configuration():
     def __init__(self, genome_fasta, bed_annotation, gtf_annotation = None, bed_color_fn=color_from_bed):
         self.source = genomeview.genomesource.FastaGenomeSource(genome_fasta)
@@ -171,6 +173,13 @@ class Configuration():
         self.bed_color_fn = bed_color_fn
 
     def index_gtf(self, gtf_annotation):
+        gene_id_regex = re.compile('gene_id "([a-zA-Z0-9\._]+)";')
+        gene_name_regex = re.compile('gene_name "([a-zA-Z0-9\.]+)";')
+        transcript_id_regex = re.compile('transcript_id "([a-zA-Z0-9\._\^]+=?)";')
+        exon_id_regex = re.compile('exon_id "([a-zA-Z0-9\._]+)";')
+        # transcript_name_regex = re.compile('transcript_name "([a-zA-Z0-9\.]+)";')
+        # protein_id_regex = re.compile('protein_id "([a-zA-Z0-9\.]+)";')
+
         self.gene_name_to_gene_id = {}
         self.gene_to_transcripts = {}
         self.transcript_to_gene = {}
@@ -182,8 +191,18 @@ class Configuration():
             # current_gene_interval = None
             for entry in pysam.tabix_iterator(gtf_file, pysam.asGTF()):
                 if entry.feature == "gene":
-                    gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
-                    gene_name = (entry.attributes.split(";")[2]).split(" ")[2].strip('"')
+                    # gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
+                    res = gene_id_regex.search(entry.attributes)
+                    if res:
+                        gene_id = res.group(1)
+                    else:
+                        print("missing gene_id in a gene entry, skipping entry")
+
+
+                    #gene_name = (entry.attributes.split(";")[2]).split(" ")[2].strip('"')
+                    res = gene_name_regex.search(entry.attributes)
+                    if res:
+                        gene_name = res.group(1)
 
                     self.gene_name_to_gene_id[gene_name] = gene_id
                     self.id_to_coordinates[gene_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
@@ -191,21 +210,55 @@ class Configuration():
                     self.gene_to_exons[gene_id] = IntervalTree()
 
                 elif entry.feature == "transcript":
-                    gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
-                    transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
+                    # gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
+                    gene_id = None
+                    res = gene_id_regex.search(entry.attributes)
+                    if res:
+                        gene_id = res.group(1)
+
+                        if gene_id not in self.id_to_coordinates:
+                            self.id_to_coordinates[gene_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
+                            self.gene_to_transcripts[gene_id] = []
+                            self.gene_to_exons[gene_id] = IntervalTree()
+
+                    # transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
+                    res = transcript_id_regex.search(entry.attributes)
+                    if res:
+                        transcript_id = res.group(1)
+                    else:
+                        print("missing transcript_id in a transcript entry, skipping entry")
+
                     self.id_to_coordinates[transcript_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
-                    self.gene_to_transcripts[gene_id].append(transcript_id)
                     self.transcript_to_gene[transcript_id] = gene_id
                     self.transcript_to_exons[transcript_id] = IntervalTree()
+                    if gene_id:
+                        self.gene_to_transcripts[gene_id].append(transcript_id)
 
                 elif entry.feature == "exon":
-                    gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
-                    transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
-                    exon_id = (entry.attributes.split(";")[7]).split(" ")[2].strip('"')
-                    if exon_id not in self.id_to_coordinates:
-                        self.id_to_coordinates[exon_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
-                    self.gene_to_exons[gene_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
-                    self.transcript_to_exons[transcript_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
+                    # gene_id = None
+                    res = gene_id_regex.search(entry.attributes)
+                    if res:
+                        gene_id = res.group(1)
+                        self.gene_to_exons[gene_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
+
+                    transcript_id = None
+                    res = transcript_id_regex.search(entry.attributes)
+                    if res:
+                        transcript_id = res.group(1)
+                        self.transcript_to_exons[transcript_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
+
+                    exon_id = None
+                    res = exon_id_regex.search(entry.attributes)
+                    if res:
+                        exon_id = res.group(1)
+                        if exon_id not in self.id_to_coordinates:
+                            self.id_to_coordinates[exon_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
+                    #else:
+                    #    print("missing exon_id in a exon entry, skipping entry")
+
+                    # gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
+                    # transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
+                    # exon_id = (entry.attributes.split(";")[7]).split(" ")[2].strip('"')
 
     def update_bed(self, bed_annotation):
         self.bed_annotation = bed_annotation
