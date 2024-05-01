@@ -8,12 +8,13 @@ import re
 import math
 import copy
 from intervaltree import Interval, IntervalTree
+from ipywidgets.embed import embed_minimal_html, dependency_state
 
 RESVG = None
 
-def save(doc, outpath, outformat=None, requested_converter=None):
+def save(doc, output_path, outformat=None, requested_converter=None):
     """
-    Saves document `doc` to a file at `outpath`. By default, this file 
+    Saves document `doc` to a file at `output_path`. By default, this file 
     will be in SVG format; if it ends with .pdf or .png, or if outformat
     is specified, the document will be converted to PDF or PNG if possible.
 
@@ -22,31 +23,31 @@ def save(doc, outpath, outformat=None, requested_converter=None):
 
     Attributes:
         doc: the :py:class:`genomeview.Document` to be saved
-        outpath: a string specifying the file to save to; file extensions of
+        output_path: a string specifying the file to save to; file extensions of
             .pdf or .png will change the default output format
         outformat: override the file format; must be one of "pdf", "png", or
             (the default) "svg"
     """
-    if isinstance(outpath, bytes):
-        outpath = outpath.decode()
+    if isinstance(output_path, bytes):
+        output_path = output_path.decode()
 
     if outformat is None:
-        if outpath.lower().endswith(".pdf"):
+        if output_path.lower().endswith(".pdf"):
             outformat = "pdf"
-        elif outpath.lower().endswith(".png"):
+        elif output_path.lower().endswith(".png"):
             outformat = "png"
         else:
             outformat = "svg"
 
     if outformat == "svg":
-        with open(outpath, "w") as outf:
+        with open(output_path, "w") as outf:
             render_to_file(doc, outf)
 
     elif outformat == "png":
-        if outpath.lower().endswith(".png"):
-            outpath_prefix = outpath[:-4]
+        if output_path.lower().endswith(".png"):
+            output_path_prefix = output_path[:-4]
         else:
-            outpath_prefix = outpath
+            output_path_prefix = output_path
 
         if (requested_converter is None or requested_converter == "resvg") and _checkRESVGConvert():
 
@@ -56,7 +57,7 @@ def save(doc, outpath, outformat=None, requested_converter=None):
             for i, split in enumerate(svg_splitter.get_splits()):
                 split_png = _convertSVG_resvg_stdio(ET.tostring(split.getroot(), encoding='utf-8'))
                 filename = f"_p{i+1:02}.png"  # Zero-pad the number, adjust i+1 if numbering should start from 01
-                with open(outpath_prefix + filename, 'wb') as outf:
+                with open(output_path_prefix + filename, 'wb') as outf:
                     outf.write(split_png)
 
         elif (requested_converted is None or requested_converter == "librsvg"):
@@ -74,22 +75,25 @@ def save(doc, outpath, outformat=None, requested_converter=None):
     
                 for i, split in enumerate(svg_splitter.get_splits()):
                     filename = f"_p{i+1:02}.png"
-                    convert_svg(split, outpath_prefix + filename, outformat, requested_converter="librsvg")
+                    convert_svg(split, output_path_prefix + filename, outformat, requested_converter="librsvg")
 
     else: # pdf
         # do something
         return
 
 
+def save_html_view(view, output_path, title=""):
+    embed_minimal_html(output_path, views=view, state=dependency_state(view), title=title)
 
 
-def render_to_file(doc, outf):
+
+def render_to_file(doc, output_handle):
     """
     Renders the document as an svg to a file-like object.
     """
 
     for l in doc.render():
-        outf.write(l + "\n")
+        output_handle.write(l + "\n")
 
 
 
