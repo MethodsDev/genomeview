@@ -62,7 +62,26 @@ class Document:
             cury += element.height + self.between_views
             
         yield self.footer
-        
+
+    def _repr_html_(self):
+        #return widgets.HTML(self._repr_svg_())
+        svg_content = self._repr_svg_()
+        custom_style = """
+        <style>
+            .custom-svg-container svg {
+                max-width: none;
+                height: auto;
+            }
+        </style>
+        """
+        html_content = f"""
+        <div class="custom-svg-container" style="overflow-x: auto; overflow-y: hidden; width: 100%;">
+            {custom_style}
+            {svg_content}
+        </div>
+        """
+        return html_content
+    
     def _repr_svg_(self):
         return "\n".join(self.render())
 
