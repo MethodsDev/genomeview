@@ -228,24 +228,31 @@ class Configuration():
                 view.add_track(bed_track)
 
 
-    def add_virtualbed_tracks_to_view(self, view, chrom, start, end):
+    def add_virtualbed_tracks_to_view(self, view, chrom, start, end, vertical_layout=True, use_names=True):
         if self.bed_annotation:
             if type(self.bed_annotation) is list:
                 for bed_path in self.bed_annotation:
                     virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path)
                     virtual_bed.index(chrom, start, end, field_defs=None)
                     virtual_bed.color_fn = self.bed_color_fn
+                    virtual_bed.vertical_layout = vertical_layout
                     view.add_track(virtual_bed)
             elif type(self.bed_annotation) is dict:
                 for bed_name, bed_path in self.bed_annotation.items():
-                    virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name=bed_name)
+                    if use_names:
+                        view.add_track(genomeview.track.TrackLabel(bed_name))
+                    else:
+                        view.add_track(genomeview.track.TrackLabel(""))
+                    virtual_bed = genomeview.bedtrack.VirtualBEDTrack(bed_path, name="")
                     virtual_bed.index(chrom, start, end, field_defs=None)
                     virtual_bed.color_fn = self.bed_color_fn
+                    virtual_bed.vertical_layout = vertical_layout
                     view.add_track(virtual_bed)
             else:
                 virtual_bed = genomeview.bedtrack.VirtualBEDTrack(self.bed_annotation)
                 virtual_bed.index(chrom, start, end, field_defs=None)
                 virtual_bed.color_fn = self.bed_color_fn
+                virtual_bed.vertical_layout = vertical_layout
                 view.add_track(virtual_bed)
 
 
@@ -652,6 +659,8 @@ class Configuration():
                 
                 max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
         
+        first_interval = True
+
         for interval in intervals_list:
             start = interval.begin
             end = interval.end
@@ -667,13 +676,16 @@ class Configuration():
             interval_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
             
             # BED type features
-            self.add_virtualbed_tracks_to_view(interval_view, chrom, left_bound, right_bound)
+            self.add_virtualbed_tracks_to_view(interval_view, chrom, left_bound, right_bound, use_names=first_interval)
 
             interval_view.add_track(genomeview.Axis())
             for key, value in bams_list.items():
-                
+                if first_interval:
+                    interval_view.add_track(genomeview.track.TrackLabel(key))
+                else:
+                    interval_view.add_track(genomeview.track.TrackLabel(""))  # for spacing
                 if with_coverage:
-                    coverage_track = genomeview.BAMCoverageTrack(value, name=key)
+                    coverage_track = genomeview.BAMCoverageTrack(value, name="")
                     coverage_track.max_y = max_coverage_dict[key]
                     interval_view.add_track(coverage_track)
                 for virtual_bam in virtual_bams_dict[key]:
@@ -688,6 +700,8 @@ class Configuration():
             interval_view.pixel_width = interval_width
             interval_view.margin_y = 0
             row.add_view(interval_view)
+
+            first_interval = False
 
         doc.elements.append(row)
         return doc
