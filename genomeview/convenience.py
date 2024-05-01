@@ -207,6 +207,8 @@ class Configuration():
                     self.gene_to_exons[gene_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
                     self.transcript_to_exons[transcript_id].add(Interval(entry.start, entry.end, entry.contig + entry.strand))
 
+    def update_bed(self, bed_annotation):
+        self.bed_annotation = bed_annotation
 
     def add_bed_tracks_to_view(self, view):
         if self.bed_annotation:
