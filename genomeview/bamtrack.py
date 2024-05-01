@@ -251,19 +251,41 @@ class SingleEndBAMTrack(IntervalTrack):
                 yield from renderer.text(midpoint, yoffset+self.row_height*0.75, length_string,
                     size=font_size, fill="white", **{"font-weight":"bold"})
 
-    def _draw_clipping(self, renderer, length, genome_position, yoffset):
+    def _draw_clipping(self, renderer, length, genome_position, yoffset, side, strand):
         extras = {"stroke":"none"}
 
         if length >= 5:
             # always draw clipping, irrespective of consensus sequence or mode
-            curstart = self.scale.topixels(genome_position-0.5)
-            curend = self.scale.topixels(genome_position+0.5)
+            if side == "left":
+                curstart = self.scale.topixels(genome_position - length - 0.5)
+                curend = self.scale.topixels(genome_position + 0.5)
+                if strand == "+": # don't make an arrow, just a rectangle
+                    strand = None
+            elif side == "right":
+                curstart = self.scale.topixels(genome_position - 0.5)
+                curend = self.scale.topixels(genome_position+length + 0.5)
+                if strand == "-": # don't make an arrow, just a rectangle
+                    strand = None
+            else:
+                curstart = self.scale.topixels(genome_position - 0.5)
+                curend = self.scale.topixels(genome_position + 0.5)
 
             width = max(curend-curstart, self.min_cigar_line_width*2)
             midpoint = (curstart+curend)/2
 
-            yield from renderer.rect(midpoint-width/2, yoffset, width, self.row_height, fill=self.clipping_color,
-                                     **extras)
+            left = midpoint-width/2
+            top = yoffset
+            if strand is None:
+                yield from renderer.rect(midpoint-width/2, yoffset, width, self.row_height, fill=self.clipping_color,
+                                         **extras)
+            else:
+                arrow_width = min(self.row_height / 2, self.margin_x * 0.7, self.scale.relpixels(30))
+                direction = "right" if strand == "+" else "left"
+
+                yield from renderer.block_arrow(left, top, width, self.row_height,
+                    arrow_width=arrow_width, direction=direction,
+                    fill=self.clipping_color, **{"stroke":"none"})
+
 
     def _draw_cigar(self, renderer, interval):
         """
@@ -299,7 +321,10 @@ class SingleEndBAMTrack(IntervalTrack):
 
                 sequence_position += length
             elif code in [4, 5]: #"HS":
-                yield from self._draw_clipping(renderer, length, genome_position, yoffset)
+                if sequence_position == 0:
+                    yield from self._draw_clipping(renderer, length, genome_position, yoffset, "left", interval.strand)
+                else:
+                    yield from self._draw_clipping(renderer, length, genome_position, yoffset, "right", interval.strand)
 
                 if code == 4:
                     sequence_position += length
