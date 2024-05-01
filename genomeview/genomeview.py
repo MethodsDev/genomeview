@@ -85,9 +85,9 @@ class Document:
     def _repr_svg_(self):
         return "\n".join(self.render())
 
-    def get_images(self, outformat="svg"):
+    def get_images(self, output_format="svg"):
         svg = self._repr_svg_()
-        if outformat == "svg":
+        if output_format == "svg":
             return [svg]
         else:  # "png"
             root_svg = ET.fromstring(svg)
@@ -100,14 +100,14 @@ class Document:
                 # pngs.append(svg2png(bytestring=ET.tostring(split_svg.getroot(), encoding='utf8')))
             return pngs
 
-    def get_widget(self, outformat="png"):
-        if outformat == "png":
-            return widgets.VBox([widgets.Image(value=data, format=outformat) for data in self.get_images(outformat)])
+    def get_widget(self, output_format="svg"):
+        if output_format == "png":
+            return widgets.VBox([widgets.Image(value=data, format=output_format) for data in self.get_images(output_format)])
         else: # "svg"
             return widgets.HTML(self._repr_svg_())
 
-    def render_html(self, output_path, outformat="png", title=""):
-        view = self.get_widget(outformat=outformat)
+    def render_html(self, output_path, output_format="svg", title=""):
+        view = self.get_widget(output_format=output_format)
         embed_minimal_html(output_path, views=view, state=dependency_state(view), title=title)
 
 

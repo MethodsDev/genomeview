@@ -12,10 +12,10 @@ from ipywidgets.embed import embed_minimal_html, dependency_state
 
 RESVG = None
 
-def save(doc, output_path, outformat=None, requested_converter=None):
+def save(doc, output_path, output_format=None, requested_converter=None):
     """
     Saves document `doc` to a file at `output_path`. By default, this file 
-    will be in SVG format; if it ends with .pdf or .png, or if outformat
+    will be in SVG format; if it ends with .pdf or .png, or if output_format
     is specified, the document will be converted to PDF or PNG if possible.
 
     Conversion to PDF and PNG require rsvg-convert (provided by librsvg), 
@@ -25,25 +25,25 @@ def save(doc, output_path, outformat=None, requested_converter=None):
         doc: the :py:class:`genomeview.Document` to be saved
         output_path: a string specifying the file to save to; file extensions of
             .pdf or .png will change the default output format
-        outformat: override the file format; must be one of "pdf", "png", or
+        output_format: override the file format; must be one of "pdf", "png", or
             (the default) "svg"
     """
     if isinstance(output_path, bytes):
         output_path = output_path.decode()
 
-    if outformat is None:
+    if output_format is None:
         if output_path.lower().endswith(".pdf"):
-            outformat = "pdf"
+            output_format = "pdf"
         elif output_path.lower().endswith(".png"):
-            outformat = "png"
+            output_format = "png"
         else:
-            outformat = "svg"
+            output_format = "svg"
 
-    if outformat == "svg":
+    if output_format == "svg":
         with open(output_path, "w") as outf:
             render_to_file(doc, outf)
 
-    elif outformat == "png":
+    elif output_format == "png":
         if output_path.lower().endswith(".png"):
             output_path_prefix = output_path[:-4]
         else:
@@ -75,7 +75,7 @@ def save(doc, output_path, outformat=None, requested_converter=None):
     
                 for i, split in enumerate(svg_splitter.get_splits()):
                     filename = f"_p{i+1:02}.png"
-                    convert_svg(split, output_path_prefix + filename, outformat, requested_converter="librsvg")
+                    convert_svg(split, output_path_prefix + filename, output_format, requested_converter="librsvg")
 
     else: # pdf
         # do something
@@ -495,17 +495,17 @@ class SvgSplitter:
         element.attrib['y'] = str(float(element.attrib['y']) - offset)
 
 
-def convert_svg(inpath, outpath, outformat, requested_converter=None):
-    converter = _getExportConverter(outformat, requested_converter=requested_converter)
+def convert_svg(inpath, outpath, output_format, requested_converter=None):
+    converter = _getExportConverter(output_format, requested_converter=requested_converter)
 
     if converter == "webkittopdf":
-        exportData = _convertSVG_webkitToPDF(inpath, outpath, outformat)
+        exportData = _convertSVG_webkitToPDF(inpath, outpath, output_format)
     elif converter == "resvg":
         exportData = _convertSVG_resvg(inpath, outpath)
     elif converter == "librsvg":
-        exportData = _convertSVG_rsvg_convert(inpath, outpath, outformat)
+        exportData = _convertSVG_rsvg_convert(inpath, outpath, output_format)
     elif converter == "inkscape":
-        exportData = _convertSVG_inkscape(inpath, outpath, outformat)
+        exportData = _convertSVG_inkscape(inpath, outpath, output_format)
 
     return exportData
 
@@ -610,8 +610,8 @@ def _convertSVG_resvg_stdio(indata):
         return None
 
 
-def _convertSVG_webkitToPDF(inpath, outpath, outformat):
-    if outformat.lower() != "pdf":
+def _convertSVG_webkitToPDF(inpath, outpath, output_format):
+    if output_format.lower() != "pdf":
         return None
 
     try:
@@ -622,14 +622,14 @@ def _convertSVG_webkitToPDF(inpath, outpath, outformat):
 
     return open(outpath, "rb").read()
 
-def _convertSVG_inkscape(inpath, outpath, outformat):
+def _convertSVG_inkscape(inpath, outpath, output_format):
     options = ""
-    outformat = outformat.lower()
-    if outformat == "png":
+    output_format = output_format.lower()
+    if output_format == "png":
         options = "--export-dpi 150 --export-background white"
 
     try:
-        subprocess.check_call("inkscape {} {} --export-{}={}".format(options, inpath, outformat, outpath), 
+        subprocess.check_call("inkscape {} {} --export-{}={}".format(options, inpath, output_format, outpath), 
             shell=True)
     except subprocess.CalledProcessError as e:
         print("EXPORT ERROR:", str(e))
@@ -637,14 +637,14 @@ def _convertSVG_inkscape(inpath, outpath, outformat):
     return open(outpath, "rb").read()
 
 
-def _convertSVG_rsvg_convert(inpath, outpath, outformat):
+def _convertSVG_rsvg_convert(inpath, outpath, output_format):
     options = ""
-    outformat = outformat.lower()
-    if outformat == "png":
+    output_format = output_format.lower()
+    if output_format == "png":
         options = "-a --background-color white"
 
     try:
-        subprocess.check_call("rsvg-convert -f {} {} -o {} {}".format(outformat, options, outpath, inpath), shell=True)
+        subprocess.check_call("rsvg-convert -f {} {} -o {} {}".format(output_format, options, outpath, inpath), shell=True)
     except subprocess.CalledProcessError as e:
         print("EXPORT ERROR:", str(e))
 

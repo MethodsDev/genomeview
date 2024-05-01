@@ -445,7 +445,7 @@ class Configuration():
 
 
     # plot_feature for a list in tabs
-    def plot_features(self, features, bams_list, outformat="png",
+    def plot_features(self, features, bams_list, output_format="svg",
                       **kwargs):
 
         params = inspect.signature(self.plot_feature).parameters
@@ -455,7 +455,7 @@ class Configuration():
         tab_contents = []
 
         for feature in features:
-            tab_contents.append(self.plot_feature(feature, bams_list, **filtered_kwargs).get_widget(outformat))
+            tab_contents.append(self.plot_feature(feature, bams_list, **filtered_kwargs).get_widget(output_format))
 
         features_tab.children = tab_contents
         features_tab.titles = features
@@ -463,7 +463,7 @@ class Configuration():
         return features_tab
 
 
-    def plot_read(self, read_id, bam, **kwargs):
+    def plot_read(self, read_id, bam, output_format="svg", **kwargs):
 
         regions = []
         virtual_bams = []
@@ -488,7 +488,7 @@ class Configuration():
 
         all_widgets = []
         for region, virtual_bam in zip(regions, virtual_bams):
-            all_widgets.append(self.plot_interval(bams_list={"read": virtual_bam}, interval=region).get_widget(), **filtered_kwargs)
+            all_widgets.append(self.plot_interval(bams_list={"read": virtual_bam}, interval=region).get_widget(output_format), **filtered_kwargs)
 
         return widgets.VBox(all_widgets)
 
