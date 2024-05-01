@@ -46,17 +46,22 @@ class IntervalTrack(Track):
         
         self.intervals = intervals
 
+        self.vertical_layout = False
         self.color_fn = color_by_strand
 
     def layout_interval(self, interval):
         row = 0
         interval_start = self.scale.topixels(interval.start)
-        for row, row_end in enumerate(self.rows):
-            if interval_start > row_end:
-                break
-        else:
+        if self.vertical_layout:
             self.rows.append(None)
             row = len(self.rows) - 1
+        else:
+            for row, row_end in enumerate(self.rows):
+                if interval_start > row_end:
+                    break
+            else:
+                self.rows.append(None)
+                row = len(self.rows) - 1
         
         new_end = self.scale.topixels(interval.end) + self.margin_x
         if interval.label is not None:
