@@ -83,7 +83,7 @@ class IntervalTrack(Track):
             
         self.height = max(1, len(self.rows)) * (self.row_height + self.margin_y)
     
-    def draw_interval(self, renderer, interval):
+    def draw_interval(self, renderer, interval, extra_args={}):
         start = self.scale.topixels(interval.start)
         end = self.scale.topixels(interval.end)
         
@@ -91,9 +91,18 @@ class IntervalTrack(Track):
         top = row*(self.row_height+self.margin_y)
         
         color = self.color_fn(interval)
-        temp_label = interval.label
-        if interval.label is None:
-            temp_label = interval.id
+
+        if "label" not in extra_args:
+            if interval.label is None:
+                extra_args["label"] = interval.id
+            else:
+                extra_args["label"] = interval.label
+
+        if "title" not in extra_args:
+            if interval.label is None:
+                extra_args["title"] = interval.id
+            else:
+                extra_args["title"] = interval.label
 
         # yield from renderer.rect(start, top, end-start, self.row_height, fill=color, 
         #     **{"stroke":"none", "id":temp_label})
@@ -107,7 +116,7 @@ class IntervalTrack(Track):
 
             yield from renderer.block_arrow(start, top, end-start, self.row_height, 
                 arrow_width=arrow_width, direction=direction,
-                fill=color, **{"stroke":"none", "id":temp_label})
+                fill=color, **{"stroke":"none", "id":extra_args["label"], "title":extra_args["title"]})
 
         if interval.label is not None:
             yield from renderer.text(end+self.label_distance, top+self.row_height-2, interval.label, anchor="start")

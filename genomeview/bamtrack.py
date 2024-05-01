@@ -156,7 +156,8 @@ class SingleEndBAMTrack(IntervalTrack):
         Draw a read and then, if ``self.draw_mismatches`` is True, draw mismatches/indels 
         on top.
         """
-        yield from super().draw_interval(renderer, interval)
+        extra_args = {"title": "read id: " + interval.read.query_name + "\nCIGAR: " + interval.read.cigarstring}
+        yield from super().draw_interval(renderer, interval, extra_args=extra_args)
 
         if self.draw_mismatches:
             yield from self._draw_cigar(renderer, interval)

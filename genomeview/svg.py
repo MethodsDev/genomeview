@@ -117,11 +117,16 @@ class SVG(GraphicsBackend):
         
     def block_arrow(self, left, top, width, height, arrow_width, direction, **kwdargs):
         coords = {"stroke": kwdargs.pop("stroke", "none"), "fill":kwdargs.pop("fill", "black")}
+        title_value = kwdargs.pop("title", None)
+        if title_value:
+             coords["content"] = "<title>" + title_value + "</title>"
+        else:
+            coords["content"] = ""
         coords["more"] = _addOptions(kwdargs)
 
         if direction == "right":
             path = """<path d="M {x0} {y0} L {x1} {y1} L {x2} {y2} L {x3} {y3} """ \
-                   """L {x4} {y4} z" stroke="{stroke}" fill="{fill}" {more}/>"""
+                   """L {x4} {y4} z" stroke="{stroke}" fill="{fill}" {more}>{content}</path>"""
             coords["x0"], coords["y0"] = left, top,
             coords["x1"], coords["y1"] = left+width, top
             coords["x2"], coords["y2"] = left+width+arrow_width, top+height/2
@@ -129,7 +134,7 @@ class SVG(GraphicsBackend):
             coords["x4"], coords["y4"] = left, top+height
         else:
             path = """<path d="M {x0} {y0} L {x1} {y1} L {x2} {y2} L {x3} {y3} """ \
-                   """L {x4} {y4} z" stroke="{stroke}" fill="{fill}" {more}/>"""
+                   """L {x4} {y4} z" stroke="{stroke}" fill="{fill}" {more}>{content}</path>"""
 
             coords["x0"], coords["y0"] = left, top
             coords["x1"], coords["y1"] = left+width, top
