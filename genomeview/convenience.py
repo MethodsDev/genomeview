@@ -105,6 +105,25 @@ def get_regions_by_read_id(bam_file, read_id):
     return(regions)
 
 
+def find_read_in_bam(read_id, bam, opener_fn=pysam.AlignmentFile):
+    regions = []
+    virtual_bams = []
+
+    with opener_fn(bam) as bam_in:
+        bam_refs = bam_in.references
+        for read in bam_in.fetch():
+            if read.query_name != read_id:
+                continue
+            regions.append(Interval(read.reference_start, read.reference_end, read.reference_name + ("+" if read.is_forward else "-")))
+            virtual_bams.append(genomeview.VirtualBAM([read], bam_refs))
+    
+    if len(regions) == 0:
+        print("Error: read either not found or not aligned")
+        return -1
+
+    return (regions, virtual_bams)
+
+
 def get_virtualbam_max_coverage(coverage_bam):
     all_starts = []
     all_ends = []
@@ -524,22 +543,11 @@ class Configuration():
         return features_tab
 
 
+
+    # double check no risk of conflict with passing an opener_fn through kwargs to find_read_in_bam that would also affect some other things down the line with VirtualBAM
     def plot_read(self, read_id, bam, output_format="svg", **kwargs):
 
-        regions = []
-        virtual_bams = []
-
-        with pysam.AlignmentFile(bam, "rb") as bam_in:
-            bam_refs = bam_in.references
-            for read in bam_in.fetch():
-                if read.query_name != read_id:
-                    continue
-                regions.append(Interval(read.reference_start, read.reference_end, read.reference_name + ("+" if read.is_forward else "-")))
-                virtual_bams.append(genomeview.VirtualBAM([read], bam_refs))
-        
-        if len(regions) == 0:
-            print("Error: read either not found or not aligned")
-            return -1
+        (regions, virtual_bams) = find_read_in_bam(read_id, bam, **kwargs)
 
         # Get the parameter names of plot_interval
         params = inspect.signature(self.plot_interval).parameters
