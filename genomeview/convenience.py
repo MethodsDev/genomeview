@@ -190,6 +190,7 @@ class Configuration():
         if gtf_annotation:
             self.index_gtf(gtf_annotation)
         self.bed_color_fn = bed_color_fn
+        # self.bam_track_class = genomeview.SingleEndBAMTrack
 
     def index_gtf(self, gtf_annotation):
         gene_id_regex = re.compile('gene_id "([a-zA-Z0-9\._]+)";')
@@ -320,8 +321,8 @@ class Configuration():
                 view.add_track(virtual_bed)
 
 
-    def make_genomeview_row(self, start, end, chrom, strand, bams_list, 
-                            padding_perc = 0.1, 
+    def make_genomeview_row(self, start, end, chrom, strand, bams_dict,
+                            padding_perc = 0.1,
                             add_track_label = "auto",
                             with_axis = True,
                             with_coverage = True,
@@ -369,13 +370,13 @@ class Configuration():
         return row
 
 
-    def add_single_view_row_to_plot(self, doc, bams_list, 
+    def add_single_view_row_to_plot(self, doc, # bams_dict, 
                                     interval = None, 
-                                    data = None, 
-                                    padding_perc = 0.1,
-                                    with_coverage = True,
-                                    include_secondary = False,
-                                    tighter_track = False):
+                                    data = None, **kwargs):
+                                   # padding_perc = 0.1,
+                                   # with_coverage = True,
+                                   # include_secondary = False,
+                                   # tighter_track = False):
         if data is not None:
             chrom = data[2]
             strand = data[3] if len(data) > 2 else True 
@@ -389,23 +390,24 @@ class Configuration():
         else:
             raise("Neither an Interval or data structure has been provided.")
 
-        row = self.make_genomeview_row(start, end, chrom, strand, bams_list, 
-                                       padding_perc = padding_perc, 
-                                       with_coverage = with_coverage,
-                                       include_secondary = include_secondary,
-                                       row = None, 
-                                       tighter_track = tighter_track)
+        row = self.make_genomeview_row(start, end, chrom, strand, **kwargs)
+#        row = self.make_genomeview_row(start, end, chrom, strand, bams_dict, **kwargs)
+                                      # padding_perc = padding_perc, 
+                                      # with_coverage = with_coverage,
+                                      # include_secondary = include_secondary,
+                                      # row = None, 
+                                      # tighter_track = tighter_track)
         doc.elements.append(row)
         return doc
 
 
-    def add_multi_view_row_to_plot(self, doc, bams_list, 
+    def add_multi_view_row_to_plot(self, doc, # bams_dict, 
                                    interval_list = None, 
-                                   data_list = None,
-                                   padding_perc = 0.1,
-                                   with_coverage = True,
-                                   include_secondary = False,
-                                   tighter_track = False):
+                                   data_list = None, **kwargs):
+#                                   padding_perc = 0.1,
+#                                   with_coverage = True,
+#                                   include_secondary = False,
+#                                   tighter_track = False):
         row = genomeview.ViewRow("row")
 
         if interval_list is not None:
@@ -415,12 +417,13 @@ class Configuration():
                 start = interval.begin
                 end  = interval.end
                 
-                self.make_genomeview_row(start, end, chrom, strand, bams_list, 
-                                         padding_perc = padding_perc, 
-                                         with_coverage = with_coverage,
-                                         include_secondary = include_secondary,
-                                         row = row, 
-                                         tighter_track = tighter_track)
+                self.make_genomeview_row(start, end, chrom, strand, # bams_dict,
+                # self.make_genomeview_row(start, end, chrom, strand, bams_dict,
+                                         row = row,  **kwargs)
+#                                         padding_perc = padding_perc, 
+#                                         with_coverage = with_coverage,
+#                                         include_secondary = include_secondary,
+#                                         tighter_track = tighter_track)
         elif data_list is not None:
             for data in data_list:
                 chrom = data[2]
@@ -428,63 +431,64 @@ class Configuration():
                 start = data[1].begin
                 end = data[1].end
                 
-                self.make_genomeview_row(start, end, chrom, strand, bams_list, 
-                                         padding_perc = padding_perc,
-                                         with_coverage = with_coverage,
-                                         include_secondary = include_secondary,
-                                         row = row, 
-                                         tighter_track = tighter_track)
+                self.make_genomeview_row(start, end, chrom, strand, # bams_dict, 
+                                         row = row,  **kwargs)
+#                                          padding_perc = padding_perc,
+#                                          with_coverage = with_coverage,
+#                                          include_secondary = include_secondary,
+#                                          tighter_track = tighter_track)
         doc.elements.append(row)
         return doc
 
 
-    def plot_interval(self, bams_list, 
-                      interval = None, 
-                      data = None, 
-                      padding_perc = 0.1,
-                      with_coverage = True,
-                      include_secondary = False,
-                      view_width = 1600, 
-                      tighter_track = False):
+    def plot_interval(self, # bams_dict, 
+                      view_width = 1600,  **kwargs):
+#                      interval = None, 
+#                      data = None, 
+#                      padding_perc = 0.1,
+#                      with_coverage = True,
+#                      include_secondary = False,
+#                      tighter_track = False):
         doc = genomeview.Document(view_width)
-        return self.add_single_view_row_to_plot(doc, bams_list, 
-                                                interval = interval, 
-                                                data = data, 
-                                                padding_perc = padding_perc,
-                                                with_coverage = with_coverage,
-                                                include_secondary = include_secondary,
-                                                tighter_track = tighter_track)
+        return self.add_single_view_row_to_plot(doc, **kwargs)
+        # return self.add_single_view_row_to_plot(doc, bams_dict, **kwargs)
+#                                                interval = interval, 
+#                                                data = data, 
+#                                                padding_perc = padding_perc,
+#                                                with_coverage = with_coverage,
+#                                                include_secondary = include_secondary,
+#                                                tighter_track = tighter_track)
 
 
-    def plot_intervals(self, bams_list, 
+    def plot_intervals(self, # bams_dict, 
                        interval_list = None, 
                        data_list = None, 
-                       N_per_row = 1, 
-                       padding_perc = 0.1,
-                       with_coverage = True,
-                       include_secondary = False,
-                       view_width = 1600,
-                       tighter_track = False):
+                       N_per_row = 1,  **kwargs):
+#                       padding_perc = 0.1,
+#                       with_coverage = True,
+#                       include_secondary = False,
+#                       view_width = 1600,
+#                       tighter_track = False):
         doc = genomeview.Document(view_width)
 
         if interval_list is not None:
             for i in range(0, len(interval_list), N_per_row):
-                doc = self.add_multi_view_row_to_plot(doc, bams_list, 
+                doc = self.add_multi_view_row_to_plot(doc, # bams_dict,
                                                       interval_list = interval_list[i:i+N_per_row], 
-                                                      data_list = None, 
-                                                      padding_perc = padding_perc,
-                                                      with_coverage = with_coverage,
-                                                      include_secondary = include_secondary,
-                                                      tighter_track = tighter_track)
+                                                      data_list = None, **kwargs)
+#                                                      padding_perc = padding_perc,
+#                                                      with_coverage = with_coverage,
+#                                                      include_secondary = include_secondary,
+#                                                      tighter_track = tighter_track)
         elif data_list is not None:
             for i in range(0, len(data_list), N_per_row):  
-                doc = self.add_multi_view_row_to_plot(doc, bams_list, 
+                doc = self.add_multi_view_row_to_plot(doc, # bams_dict,
                                                       interval_list = None, 
-                                                      data_list = data_list[i:i+N_per_row], 
-                                                      padding_perc = padding_perc, 
-                                                      with_coverage = with_coverage,
-                                                      include_secondary = include_secondary,
-                                                      tighter_track = tighter_track)
+                                                      data_list = data_list[i:i+N_per_row],  **kwargs)
+#                                                      padding_perc = padding_perc, 
+#                                                      with_coverage = with_coverage,
+#                                                      include_secondary = include_secondary,
+#                                                      tighter_track = tighter_track)
         return doc
 
     def get_feature_info(self, feature):
@@ -507,36 +511,39 @@ class Configuration():
 
 
 
-    def plot_feature(self, feature, bams_list, 
-                     padding_perc = 0.1,
-                     with_coverage = True,
-                     include_secondary = False,
-                     view_width = 1600, 
-                     tighter_track = False):
+    def plot_feature(self, feature, **kwargs):
+#    def plot_feature(self, feature, bams_dict, **lwargs)
+#                     padding_perc = 0.1,
+#                     with_coverage = True,
+#                     include_secondary = False,
+#                     view_width = 1600, 
+#                     tighter_track = False):
 
         (feature_id, feature_type) = self.get_feature_info(feature)
 
-        return self.plot_interval(bams_list, 
-                                  interval = self.id_to_coordinates[feature_id], 
-                                  padding_perc = padding_perc,
-                                  with_coverage = with_coverage,
-                                  include_secondary = include_secondary,
-                                  view_width = view_width, 
-                                  tighter_track = tighter_track)
+        return self.plot_interval(#bams_dict, 
+                                  interval = self.id_to_coordinates[feature_id], **kwargs)
+#                                  padding_perc = padding_perc,
+#                                  with_coverage = with_coverage,
+#                                  include_secondary = include_secondary,
+#                                  view_width = view_width, 
+#                                  tighter_track = tighter_track)
 
 
     # plot_feature for a list in tabs
-    def plot_features(self, features, bams_list, output_format="svg",
+    def plot_features(self, features, # bams_dict, 
+                      output_format="svg",
                       **kwargs):
 
-        params = inspect.signature(self.plot_feature).parameters
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
+        # params = inspect.signature(self.plot_feature).parameters
+        # filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
 
         features_tab = widgets.Tab()
         tab_contents = []
 
         for feature in features:
-            tab_contents.append(self.plot_feature(feature, bams_list, **filtered_kwargs).get_widget(output_format))
+            tab_contents.append(self.plot_feature(feature, **kwargs).get_widget(output_format))
+            # tab_contents.append(self.plot_feature(feature, bams_list, **filtered_kwargs).get_widget(output_format))
 
         features_tab.children = tab_contents
         features_tab.titles = features
@@ -551,33 +558,36 @@ class Configuration():
         (regions, virtual_bams) = find_read_in_bam(read_id, bam, **kwargs)
 
         # Get the parameter names of plot_interval
-        params = inspect.signature(self.plot_interval).parameters
+        # params = inspect.signature(self.plot_interval).parameters
 
         # Filter kwargs to only include keys that are in plot_interval's parameters
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
+        # filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
 
         all_widgets = []
         for region, virtual_bam in zip(regions, virtual_bams):
-            all_widgets.append(self.plot_interval(bams_list={"read": virtual_bam}, interval=region).get_widget(output_format), **filtered_kwargs)
+            all_widgets.append(self.plot_interval(bams_dict={"read": virtual_bam}, interval=region).get_widget(output_format), **kwargs)
+            # all_widgets.append(self.plot_interval(bams_list={"read": virtual_bam}, interval=region).get_widget(output_format), **filtered_kwargs)
 
         return widgets.VBox(all_widgets)
 
 
 
-    def plot_exons(self, feature, bams_list, merge_exons = True,
-                   padding_perc = 0.05, 
-                   with_coverage = True,
-                   include_secondary = False, 
-                   view_width = 1600,
-                   normalize_interval_width = False,
+    def plot_exons(self, feature, # bams_dict, 
+                   merge_exons = True,
                    N_per_row = 99999,
-                   as_widget = False,
-                   tighter_track = False):
+                   view_width = 1600,
+                   as_widget = False, **kwargs):
+#                   normalize_interval_width = False,
+#                   padding_perc = 0.05, 
+#                   with_coverage = True,
+#                   include_secondary = False, 
+#                   tighter_track = False):
 
         (feature_id, feature_type) = self.get_feature_info(feature)
         
         if feature_type == "exon":
-            return self.plot_feature(feature_id, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, view_width=view_width, tighter_track=tighter_track)
+            return self.plot_feature(feature_id, **kwargs)
+            # return self.plot_feature(feature_id, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, view_width=view_width, tighter_track=tighter_track)
 
         elif feature_type == "transcript":
             exons_list = sorted(self.transcript_to_exons[feature_id])
@@ -593,7 +603,8 @@ class Configuration():
             all_views = []
             all_titles = []
             for exon in exons_list:
-                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), [exon], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+                doc = self.make_intervals_row_through_virtual(genomeview.Document(view_width), [exon], **kwargs)
+                # doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), [exon], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
                 all_views.append(widgets.HTML(doc._repr_svg_()))
                 # all_views.append(doc.get_widget())
                 all_titles.append("Exon:: " + exon.data + " : " + str(exon.begin) + " - " + str(exon.end))
@@ -606,19 +617,20 @@ class Configuration():
         else:
             doc = genomeview.Document(view_width)
             for i in range(0, len(exons_list), N_per_row):
-               doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+               self.make_intervals_row_through_virtual(doc, exons_list[i:i+N_per_row], **kwargs)
+               # doc = self.make_intervals_row_from_virtual(doc, exons_list[i:i+N_per_row], bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
             return doc
 
 
 
-    def plot_splice_junctions(self, feature, bams_list,
-                              padding_perc = 0.05, 
-                              with_coverage = True,
-                              include_secondary = False, 
+    def plot_splice_junctions(self, feature, # bams_dict,
                               view_width = 1600,
-                              normalize_interval_width = False,
-                              as_widget = False,
-                              tighter_track = False):
+                              as_widget = False, **kwargs):
+#                              padding_perc = 0.05, 
+#                              with_coverage = True,
+#                              include_secondary = False, 
+#                              normalize_interval_width = False,
+#                              tighter_track = False):
 
         (feature_id, feature_type) = self.get_feature_info(feature)
         
@@ -650,7 +662,8 @@ class Configuration():
             all_views = []
             all_titles = []
             for pair in exons_pairs:
-                doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+                doc = self.make_intervals_row_through_virtual(genomeview.Document(view_width), pair, **kwargs)
+                # doc = self.make_intervals_row_from_virtual(genomeview.Document(view_width), pair, bams_dict=bams_dict, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
                 all_views.append(widgets.HTML(doc._repr_svg_()))
                 # all_views.append(doc.get_widget())
                 all_titles.append("Splice junction btw: exon:: " + pair[0].data + ":" + str(pair[0].begin) + "-" + str(pair[0].end) + " and exon::" + pair[1].data + " : " + str(pair[1].begin) + " - " + str(pair[1].end))
@@ -663,17 +676,18 @@ class Configuration():
         else:
             doc = genomeview.Document(view_width)
             for pair in exons_pairs:
-               doc = self.make_intervals_row_from_virtual(doc, pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
+               self.make_intervals_row_through_virtual(doc, pair, **kwargs)
+               # doc = self.make_intervals_row_from_virtual(doc, pair, bams_list=bams_list, padding_perc=padding_perc, with_coverage=with_coverage, include_secondary=include_secondary, normalize_interval_width=normalize_interval_width, tighter_track=tighter_track)
             return doc
      
 
-    def make_intervals_row_from_virtual(self, doc, intervals_list, bams_list,
-                                        padding_perc = 0.1, 
-                                        with_coverage = True,
-                                        include_secondary = False,
-                                        row = None, 
-                                        normalize_interval_width = False,
-                                        tighter_track = False):
+    def make_intervals_row_through_virtual(self, doc, intervals_list, bams_dict,
+                                            padding_perc = 0.1, 
+                                            with_coverage = True,
+                                            include_secondary = False,
+                                            row = None, 
+                                            normalize_interval_width = False,
+                                            tighter_track = False):
 
 
         if row is None:
@@ -698,7 +712,7 @@ class Configuration():
 
         max_coverage_dict = {}
         virtual_bams_dict = {}
-        for key, value in bams_list.items():
+        for key, value in bams_dict.items():
 
             virtual_bams_dict[key] = []
             all_reads_for_coverage = set()
@@ -742,7 +756,7 @@ class Configuration():
             self.add_virtualbed_tracks_to_view(interval_view, chrom, left_bound, right_bound, use_names=first_interval)
 
             interval_view.add_track(genomeview.Axis())
-            for key, value in bams_list.items():
+            for key, value in bams_dict.items():
                 if first_interval:
                     interval_view.add_track(genomeview.track.TrackLabel(key))
                 else:
