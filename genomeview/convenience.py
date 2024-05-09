@@ -322,22 +322,32 @@ class Configuration():
 
     def make_genomeview_row(self, start, end, chrom, strand, bams_list, 
                             padding_perc = 0.1, 
+                            add_track_label = "auto",
+                            with_axis = True,
                             with_coverage = True,
+                            with_bed = True,
                             include_secondary = False,
                             row = None, 
                             tighter_track = False):
+
         padding = math.ceil((end - start) * padding_perc)
 
         if row is None:
             row = genomeview.ViewRow("row")
         gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, "+", self.source)
         # gene_view = genomeview.GenomeView(chrom, start - padding, end + padding, "+", self.source)
-        gene_view.add_track(genomeview.track.TrackLabel(chrom + " : " + str(start - padding) + " - " + str(end + padding)))
+        if add_track_label:
+            if add_track_label == "auto":
+                gene_view.add_track(genomeview.track.TrackLabel(chrom + " : " + str(start - padding) + " - " + str(end + padding)))
+            else:
+                gene_view.add_track(genomeview.track.TrackLabel(add_track_label))
 
-        self.add_bed_tracks_to_view(gene_view)
+        if with_bed:
+            self.add_bed_tracks_to_view(gene_view)
 
-        gene_view.add_track(genomeview.Axis())
-        for key, value in bams_list.items():
+        if with_axis:
+            gene_view.add_track(genomeview.Axis())
+        for key, value in bams_dict.items():
             if isinstance(value, genomeview.VirtualBAM):
                 opener_kwargs = {'opener_fn': lambda x: x}
             else:
