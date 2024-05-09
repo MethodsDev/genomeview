@@ -5,7 +5,7 @@ import numpy
 from genomeview.intervaltrack import Interval, IntervalTrack
 from genomeview.utilities import match_chrom_format
 
-DEFAULT_FIELD_DEFS = {
+DEFAULT_BED_FIELD_DEFS = {
     "chrom":0,
     "start":1,
     "end":2,
@@ -52,7 +52,7 @@ def tx_from_bedfields(bedfields, field_defs=None):
     """
 
     if field_defs is None:
-        field_defs = DEFAULT_FIELD_DEFS
+        field_defs = DEFAULT_BED_FIELD_DEFS
 
     values = {}
     for field_name, field in field_defs.items():
