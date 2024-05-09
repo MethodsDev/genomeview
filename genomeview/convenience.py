@@ -92,10 +92,10 @@ def visualize_data(file_paths, chrom, start, end, reference_path=None,
 
 ### newly added wrappers
 
-def get_regions_by_read_id(bam_file, read_id):
+def get_regions_by_read_id(bam_file, read_id, opener_fn=pysam.AlignmentFile):
     regions = []
 
-    with pysam.AlignmentFile(bam_file, "rb") as bam_in:
+    with opener_fn(bam) as bam_in:
         for read in bam_in.fetch():
             if read.query_name != read_id:
                 continue
