@@ -134,12 +134,12 @@ class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
         self.margin_y = 2
 
 def color_from_bed(interval):
-    if interval.tx.color:
+    if interval.tx.color and len(interval.tx.color.split(",")) == 3:
         # hex_colors = interval.tx.color.split(",")
         # return "#{0:02x}{1:02x}{2:02x}".format(int(hex_colors[0]), int(hex_colors[1]), int(hex_colors[2]))
         return "rgb(" + interval.tx.color + ")"
     else:
-        return "#E89E9D"
+        return genomeview.color_by_strand(interval)
 
 
 # adding chrom and strand accessors for Interval from data slot based on the usage made in the code below
@@ -175,7 +175,7 @@ class Configuration():
     def index_gtf(self, gtf_annotation):
         gene_id_regex = re.compile('gene_id "([a-zA-Z0-9\._]+)";')
         gene_name_regex = re.compile('gene_name "([a-zA-Z0-9\.]+)";')
-        transcript_id_regex = re.compile('transcript_id "([a-zA-Z0-9\._\^]+=?)";')
+        transcript_id_regex = re.compile('transcript_id "([a-zA-Z0-9\._\^\-]+=?)";')
         exon_id_regex = re.compile('exon_id "([a-zA-Z0-9\._]+)";')
         # transcript_name_regex = re.compile('transcript_name "([a-zA-Z0-9\.]+)";')
         # protein_id_regex = re.compile('protein_id "([a-zA-Z0-9\.]+)";')
@@ -226,7 +226,8 @@ class Configuration():
                     if res:
                         transcript_id = res.group(1)
                     else:
-                        print("missing transcript_id in a transcript entry, skipping entry")
+                        print("missing transcript_id in a transcript entry, skipping entry:")
+                        print(entry)
 
                     self.id_to_coordinates[transcript_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
                     self.transcript_to_gene[transcript_id] = gene_id
