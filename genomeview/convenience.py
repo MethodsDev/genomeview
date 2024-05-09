@@ -207,10 +207,8 @@ class Configuration():
         self.id_to_coordinates = {}
 
         with gzip.open(gtf_annotation, "r") as gtf_file:
-            # current_gene_interval = None
             for entry in pysam.tabix_iterator(gtf_file, pysam.asGTF()):
                 if entry.feature == "gene":
-                    # gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     res = gene_id_regex.search(entry.attributes)
                     if res:
                         gene_id = res.group(1)
@@ -218,7 +216,6 @@ class Configuration():
                         print("missing gene_id in a gene entry, skipping entry")
 
 
-                    #gene_name = (entry.attributes.split(";")[2]).split(" ")[2].strip('"')
                     res = gene_name_regex.search(entry.attributes)
                     if res:
                         gene_name = res.group(1)
@@ -229,7 +226,6 @@ class Configuration():
                     self.gene_to_exons[gene_id] = IntervalTree()
 
                 elif entry.feature == "transcript":
-                    # gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
                     gene_id = None
                     res = gene_id_regex.search(entry.attributes)
                     if res:
@@ -240,7 +236,6 @@ class Configuration():
                             self.gene_to_transcripts[gene_id] = []
                             self.gene_to_exons[gene_id] = IntervalTree()
 
-                    # transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
                     res = transcript_id_regex.search(entry.attributes)
                     if res:
                         transcript_id = res.group(1)
@@ -273,15 +268,11 @@ class Configuration():
                         exon_id = res.group(1)
                         if exon_id not in self.id_to_coordinates:
                             self.id_to_coordinates[exon_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
-                    #else:
-                    #    print("missing exon_id in a exon entry, skipping entry")
 
-                    # gene_id = (entry.attributes.split(";")[0]).split(" ")[1].strip('"')
-                    # transcript_id = (entry.attributes.split(";")[1]).split(" ")[2].strip('"')
-                    # exon_id = (entry.attributes.split(";")[7]).split(" ")[2].strip('"')
 
     def update_bed(self, bed_annotation):
         self.bed_annotation = bed_annotation
+
 
     def add_bed_tracks_to_view(self, view):
         if self.bed_annotation:
