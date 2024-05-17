@@ -324,11 +324,19 @@ class Configuration():
     def make_genomeview_row(self, start, end, chrom, strand, bams_dict,
                             padding_perc = 0.1,
                             add_track_label = "auto",
+                            add_reads_label = "auto",
+                            add_coverage_label = "auto",
+                            with_reads = True,
                             with_axis = True,
                             with_coverage = True,
                             with_bed = True,
+                            vertical_layout_reads = False,
                             include_secondary = False,
                             row = None, 
+                            view_width = None,
+                            view_margin_y = None,
+                            fill_coverage = False,
+                            coverage_track_max_y = None,
                             tighter_track = False):
 
         padding = math.ceil((end - start) * padding_perc)
@@ -356,16 +364,45 @@ class Configuration():
 
 
             if with_coverage:
-                coverage_track = genomeview.BAMCoverageTrack(value, name=key, **opener_kwargs)
+                if add_coverage_label:
+                    if add_coverage_label == "auto":
+                        add_coverage_label = key
+                else:
+                    add_coverage_label = ""
+                coverage_track = genomeview.BAMCoverageTrack(value, name=add_coverage_label, **opener_kwargs)
+
+                if fill_coverage:
+                    coverage_track.fill_coverage = True
+
+                if coverage_track_max_y:
+                    if type(coverage_track_max_y) is dict:
+                        coverage_track.max_y = coverage_track_max_y[key]
+                    else:
+                        coverage_track.max_y = coverage_track_max_y
                 gene_view.add_track(coverage_track)
-            if tighter_track:
-                bam_track = TighterSingleEndBAMTrack(value, name=key, **opener_kwargs)
-            else:
-                bam_track = genomeview.SingleEndBAMTrack(value, name=key, **opener_kwargs)
-            if include_secondary:
-                coverage_track.include_secondary = True
-                bam_track.include_secondary = True
-            gene_view.add_track(bam_track)
+            if with_reads:
+                if add_reads_label:
+                    if add_reads_label == "auto":
+                        add_reads_label = key
+                else:
+                    add_reads_label = ""
+
+
+                if tighter_track:
+                    bam_track = TighterSingleEndBAMTrack(value, name=add_reads_label, **opener_kwargs)
+                else:
+                    bam_track = genomeview.SingleEndBAMTrack(value, name=add_reads_label, **opener_kwargs)
+                if include_secondary:
+                    coverage_track.include_secondary = True
+                    bam_track.include_secondary = True
+                bam_track.vertical_layout = vertical_layout_reads
+                gene_view.add_track(bam_track)
+
+        if view_width:
+            gene_view.pixel_width = view_width
+        if view_margin_y:
+            gene_view.margin_y = view_margin_y
+
         row.add_view(gene_view)
         return row
 
@@ -683,11 +720,16 @@ class Configuration():
 
     def make_intervals_row_through_virtual(self, doc, intervals_list, bams_dict,
                                             padding_perc = 0.1, 
+                                            add_track_label = "auto",
+                                            add_reads_label = "auto",
+                                            add_coverage_label = "auto",
                                             with_coverage = True,
                                             include_secondary = False,
                                             row = None, 
                                             normalize_interval_width = False,
-                                            tighter_track = False):
+                                            shared_max_coverage = False,
+                                            # tighter_track = False,
+                                            **kwargs):
 
 
         if row is None:
@@ -735,8 +777,18 @@ class Configuration():
                     virtual_bams_dict[key].append(bam_track)
                 
                 max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
+
+        if shared_max_coverage:
+            if type(shared_max_coverage) is bool:  # is True but not a value
+                max_coverage_dict = max(max_coverage_dict.values())
+            else:
+                max_coverage_dict = shared_max_coverage
+            # print("setting shared max coverage to " + str(max_coverage_dict))
         
-        first_interval = True
+        first_interval = "auto"
+
+#        local_padding_perc = padding_perc
+#        kwargs.pop('padding_perc', None)
 
         for interval in intervals_list:
             start = interval.begin
@@ -749,36 +801,50 @@ class Configuration():
                 interval_width = (doc.width - reserved_width)/len(intervals_list)
             else:
                 interval_width = math.floor((interval.end - interval.begin + padding) * per_base_size)
-            interval_view = genomeview.GenomeView(chrom, start - padding, end + padding, "+", source=self.source)
-            interval_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
+
+            row = self.make_genomeview_row(start=start, end=end, chrom=chrom, strand=strand, bams_dict=bams_dict, 
+                                            padding_perc = 0, 
+                                            add_track_label = add_track_label,
+                                            add_reads_label = add_reads_label,
+                                            add_coverage_label = add_coverage_label,
+                                            row = row, 
+                                            view_width = interval_width, 
+                                            view_margin_y = 0,
+                                            coverage_track_max_y = max_coverage_dict,
+                                            **kwargs)
+            # interval_view = genomeview.GenomeView(chrom, start - padding, end + padding, "+", source=self.source)
+            # interval_view.add_track(genomeview.track.TrackLabel(chrom + (" +" if strand else " -") + " : " + str(start - padding) + " - " + str(end + padding)))
             
-            # BED type features
-            self.add_virtualbed_tracks_to_view(interval_view, chrom, left_bound, right_bound, use_names=first_interval)
+            # # BED type features
+            # self.add_virtualbed_tracks_to_view(interval_view, chrom, left_bound, right_bound, use_names=first_interval)
 
-            interval_view.add_track(genomeview.Axis())
-            for key, value in bams_dict.items():
-                if first_interval:
-                    interval_view.add_track(genomeview.track.TrackLabel(key))
-                else:
-                    interval_view.add_track(genomeview.track.TrackLabel(""))  # for spacing
-                if with_coverage:
-                    coverage_track = genomeview.BAMCoverageTrack(value, name="")
-                    coverage_track.max_y = max_coverage_dict[key]
-                    interval_view.add_track(coverage_track)
-                for virtual_bam in virtual_bams_dict[key]:
-                    if tighter_track:
-                        bam_track = TighterSingleEndBAMTrack(virtual_bam, name=None, opener_fn=lambda x: x)
-                    else:
-                        bam_track = genomeview.bamtrack.SingleEndBAMTrack(virtual_bam, name=None, opener_fn=lambda x: x)
-                    if include_secondary:
-                        coverage_track.include_secondary = True
-                        bam_track.include_secondary = True
-                    interval_view.add_track(bam_track)
-            interval_view.pixel_width = interval_width
-            interval_view.margin_y = 0
-            row.add_view(interval_view)
+            # interval_view.add_track(genomeview.Axis())
+            # for key, value in bams_dict.items():
+            #     if first_interval:
+            #         interval_view.add_track(genomeview.track.TrackLabel(key))
+            #     else:
+            #         interval_view.add_track(genomeview.track.TrackLabel(""))  # for spacing
+            #     if with_coverage:
+            #         coverage_track = genomeview.BAMCoverageTrack(value, name="")
+            #         coverage_track.max_y = max_coverage_dict[key]
+            #         interval_view.add_track(coverage_track)
+            #     for virtual_bam in virtual_bams_dict[key]:
+            #         if tighter_track:
+            #             bam_track = TighterSingleEndBAMTrack(virtual_bam, name=None, opener_fn=lambda x: x)
+            #         else:
+            #             bam_track = genomeview.bamtrack.SingleEndBAMTrack(virtual_bam, name=None, opener_fn=lambda x: x)
+            #         if include_secondary:
+            #             coverage_track.include_secondary = True
+            #             bam_track.include_secondary = True
+            #         interval_view.add_track(bam_track)
+            # interval_view.pixel_width = interval_width
+            # interval_view.margin_y = 0
+            # row.add_view(interval_view)
 
-            first_interval = False
+            if add_track_label:
+                add_track_label = "\n"
+            add_reads_label = None
+            add_coverage_label = None
 
         doc.elements.append(row)
         return doc
