@@ -35,6 +35,8 @@ class GraphTrack(Track):
 
         self.height = 100
         self.ymargin = 5
+
+        self.fill_coverage = False
         
     def add_series(self, x, y, color=None, label=None):
         """
@@ -70,18 +72,39 @@ class GraphTrack(Track):
         
     def render(self, renderer):
         for label, series in self.series.items():
-            for i in range(len(series.x)-1):
-                if any(numpy.isnan(series.x[i:i+2])) or any(numpy.isnan(series.y[i:i+2])):
-                    continue
-                x1 = self.scale.topixels(series.x[i])
-                x2 = self.scale.topixels(series.x[i+1])
-                y1 = self.ytopixels(series.y[i])
-                y2 = self.ytopixels(series.y[i+1])
-                
-                yield from renderer.line(x1, y1, x2, y1, 
-                    **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
-                yield from renderer.line(x2, y1, x2, y2, 
-                    **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
+            if not self.fill_coverage:
+                for i in range(len(series.x)-1):
+                    if any(numpy.isnan(series.x[i:i+2])) or any(numpy.isnan(series.y[i:i+2])):
+                        continue
+                    x1 = self.scale.topixels(series.x[i])
+                    x2 = self.scale.topixels(series.x[i+1])
+                    y1 = self.ytopixels(series.y[i])
+                    y2 = self.ytopixels(series.y[i+1])
+                    
+                    yield from renderer.line(x1, y1, x2, y1, 
+                        **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
+                    yield from renderer.line(x2, y1, x2, y2, 
+                        **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
+            else:
+                current_min_y = 0  # keeping track of min because higher coverage is lower y value (closer to top)
+                full_path = "<path d=\"M "
+                x1 = self.scale.topixels(series.x[0]) + renderer.x
+                y1 = self.ytopixels(0) + renderer.y
+                full_path += str(x1) + " " + str(y1)
+
+                for i in range(len(series.x)):
+                    if numpy.isnan(series.x[i]) or numpy.isnan(series.y[i]):
+                        continue
+                    x1 = self.scale.topixels(series.x[i])+ renderer.x
+                    y1 = self.ytopixels(series.y[i]) + renderer.y
+                    current_min_y = min(current_min_y, y1)
+                    full_path += " L " + str(x1) + " " + str(y1)
+
+                y1 = self.ytopixels(0) + renderer.y
+                full_path += " L " + str(x1) + " " + str(y1) + "\""
+                full_path += " xcenter=\"" + str((self.ytopixels(0) + current_min_y)/2) +  "\" stroke=\"" + series.color + "\" fill=\"" + series.color + "\" stroke_width=\"1\"></path>"
+
+                yield full_path
 
         # since the labels are drawn at the top of the ticks, let's make sure the top tick/label is 
         # more than 12 pixels from the top of the track so it doesn't get clipped
