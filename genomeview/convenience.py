@@ -105,17 +105,23 @@ def get_regions_by_read_id(bam_file, read_id, opener_fn=pysam.AlignmentFile):
     return(regions)
 
 
-def find_read_in_bam(read_id, bam, opener_fn=pysam.AlignmentFile):
+def find_read_in_bam(read_id, bams_dict):
     regions = []
     virtual_bams = []
 
-    with opener_fn(bam) as bam_in:
-        bam_refs = bam_in.references
-        for read in bam_in.fetch():
-            if read.query_name != read_id:
-                continue
-            regions.append(Interval(read.reference_start, read.reference_end, read.reference_name + ("+" if read.is_forward else "-")))
-            virtual_bams.append(genomeview.VirtualBAM([read], bam_refs))
+    for key, value in bams_dict.items():
+        if isinstance(value, genomeview.VirtualBAM):
+            opener_fn = lambda x: x
+        else:
+            opener_fn = pysam.AlignmentFile
+
+        with opener_fn(value) as bam_in:
+            bam_refs = bam_in.references
+            for read in bam_in.fetch():
+                if read.query_name != read_id:
+                    continue
+                regions.append(Interval(read.reference_start, read.reference_end, read.reference_name + ("+" if read.is_forward else "-")))
+                virtual_bams.append(genomeview.VirtualBAM([read], bam_refs))
     
     if len(regions) == 0:
         print("Error: read either not found or not aligned")
@@ -588,11 +594,9 @@ class Configuration():
         return features_tab
 
 
+    def plot_read(self, read_id, bams_dict, interval="auto", output_format="svg", **kwargs):
 
-    # double check no risk of conflict with passing an opener_fn through kwargs to find_read_in_bam that would also affect some other things down the line with VirtualBAM
-    def plot_read(self, read_id, bam, output_format="svg", **kwargs):
-
-        (regions, virtual_bams) = find_read_in_bam(read_id, bam, **kwargs)
+        (regions, virtual_bams) = find_read_in_bam(read_id, bams_dict)
 
         # Get the parameter names of plot_interval
         # params = inspect.signature(self.plot_interval).parameters
@@ -602,11 +606,36 @@ class Configuration():
 
         all_widgets = []
         for region, virtual_bam in zip(regions, virtual_bams):
-            all_widgets.append(self.plot_interval(bams_dict={"read": virtual_bam}, interval=region).get_widget(output_format), **kwargs)
+            if isinstance(interval, str) and interval == "auto":
+                all_widgets.append(self.plot_interval(bams_dict={"read": virtual_bam}, interval=region, **kwargs).get_widget(output_format))
+            else:
+                all_widgets.append(self.plot_interval(bams_dict={"read": virtual_bam}, interval=interval, **kwargs).get_widget(output_format))
+
             # all_widgets.append(self.plot_interval(bams_list={"read": virtual_bam}, interval=region).get_widget(output_format), **filtered_kwargs)
 
         return widgets.VBox(all_widgets)
 
+
+    def plot_reads(self, read_ids, bams_dict, interval, **kwargs):
+        if not isinstance(interval, Interval):
+            print("Error, Interval() required but not provided")
+            return -1
+
+        first = True
+        all_widgets = []
+
+        for read_id in read_ids:
+            if first:
+                all_widgets.append(self.plot_read(read_id, bams_dict, interval, **kwargs))
+                first = False
+            else:
+                all_widgets.append(self.plot_read(read_id, bams_dict, interval, with_coverage = False,
+                                                                                with_axis = False,
+                                                                                with_bed = False,
+                                                                                add_track_label = False,
+                                                                                add_reads_label = False,
+                                                                                **kwargs))
+        return widgets.VBox(all_widgets)
 
 
     def plot_exons(self, feature, # bams_dict, 
