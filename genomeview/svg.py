@@ -48,8 +48,15 @@ class SVG(GraphicsBackend):
 
     def rect(self, x, y, width, height, **kwdargs):
         defaults = {"fill":"white", "stroke":"black"}
-        tag = """<rect x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" {more}/>""".format(
-            x=x, y=y, w=width, h=height, more=_addOptions(kwdargs, defaults))
+
+        title_value = kwdargs.pop("title", None)
+        if title_value:
+             content = "<title>" + title_value + "</title>"
+        else:
+            content = ""
+
+        tag = """<rect x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" {more}>{content}</rect>""".format(
+            x=x, y=y, w=width, h=height, more=_addOptions(kwdargs, defaults), content=content)
         yield tag
 
     def line(self, x1, y1, x2, y2, **kwdargs):

@@ -187,6 +187,7 @@ class SingleEndBAMTrack(IntervalTrack):
                 if not self.mismatch_counts or alt=="N" or self.mismatch_counts.query(alt, genome_position+i):
                     width = max(curend-curstart, self.min_cigar_line_width)
                     midpoint = (curstart+curend)/2
+                    extras["title"] = ref + " -> " + alt + "\nreference position: " + str(genome_position + i)
                     yield from renderer.rect(midpoint-width/2, yoffset, width, self.row_height, fill=color, 
                                              **extras)
 
