@@ -182,7 +182,7 @@ class SingleEndBAMTrack(IntervalTrack):
                 curstart = self.scale.topixels(genome_position+i)
                 curend = self.scale.topixels(genome_position+i+1)
 
-                color = self.nuc_colors[alnseq[sequence_position+i]]
+                color = self.nuc_colors[alt]  # self.nuc_colors[alnseq[sequence_position+i]]
 
                 if not self.mismatch_counts or alt=="N" or self.mismatch_counts.query(alt, genome_position+i):
                     width = max(curend-curstart, self.min_cigar_line_width)
