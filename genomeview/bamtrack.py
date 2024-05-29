@@ -165,16 +165,18 @@ class SingleEndBAMTrack(IntervalTrack):
     def _draw_mismatch(self, renderer, length, genome_position, sequence_position, yoffset, alnseq):
         extras = {"stroke":"none"}
 
+        try:
+            refseq = self.scale.get_seq(genome_position, genome_position + length)
+        except AssertionError:
+            logging.warn("Unable to get reference sequence; will not draw mismatches")
+            return
+
         for i in range(length):
             if genome_position+i < self.scale.start: continue
             if genome_position+i >= self.scale.end: break
 
             alt = alnseq[sequence_position+i]
-            try:
-                ref = self.scale.get_seq(genome_position+i, genome_position+i+1)
-            except AssertionError:
-                logging.warn("Unable to get reference sequence; will not draw mismatches")
-                return
+            ref = refseq[i]
 
             if alt != ref:
                 curstart = self.scale.topixels(genome_position+i)
