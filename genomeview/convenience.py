@@ -105,7 +105,7 @@ def get_regions_by_read_id(bam_file, read_id, opener_fn=pysam.AlignmentFile):
     return(regions)
 
 
-def find_read_in_bam(read_id, bams_dict):
+def find_read_in_bam(read_id, bams_dict, silence_error=False):
     regions = []
     virtual_bams = []
 
@@ -123,9 +123,9 @@ def find_read_in_bam(read_id, bams_dict):
                 regions.append(Interval(read.reference_start, read.reference_end, read.reference_name + ("+" if read.is_forward else "-")))
                 virtual_bams.append(genomeview.VirtualBAM([read], bam_refs))
     
-    if len(regions) == 0:
+    if len(regions) == 0 and not silence_error:
         print("Error: read either not found or not aligned")
-        return -1
+        return (-1, -1)
 
     return (regions, virtual_bams)
 
@@ -597,47 +597,55 @@ class Configuration():
         return features_tab
 
 
-    def plot_read(self, read_id, bams_dict, interval="auto", output_format="svg", **kwargs):
-
-        (regions, virtual_bams) = find_read_in_bam(read_id, bams_dict)
+    def plot_read(self, read_id, bams_dict, interval="auto", output_format="svg", silence_error=False, **kwargs):
 
         # Get the parameter names of plot_interval
-        # params = inspect.signature(self.plot_interval).parameters
-
+        # params = inspect.signature(find_read_in_bam).parameters
         # Filter kwargs to only include keys that are in plot_interval's parameters
         # filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
+
+        (regions, virtual_bams) = find_read_in_bam(read_id, bams_dict, silence_error)
+
+        if regions == -1:
+            return None
+
 
         all_widgets = []
         for region, virtual_bam in zip(regions, virtual_bams):
             if isinstance(interval, str) and interval == "auto":
-                all_widgets.append(self.plot_interval(bams_dict={"read": virtual_bam}, interval=region, **kwargs).get_widget(output_format))
+                tmp = self.plot_interval(bams_dict={"read": virtual_bam}, interval=region, **kwargs).get_widget(output_format)
             else:
-                all_widgets.append(self.plot_interval(bams_dict={"read": virtual_bam}, interval=interval, **kwargs).get_widget(output_format))
-
-            # all_widgets.append(self.plot_interval(bams_list={"read": virtual_bam}, interval=region).get_widget(output_format), **filtered_kwargs)
+                tmp = self.plot_interval(bams_dict={"read": virtual_bam}, interval=interval, **kwargs).get_widget(output_format)
+            if tmp is not None:
+                all_widgets.append(tmp)
 
         return widgets.VBox(all_widgets)
 
 
-    def plot_reads(self, read_ids, bams_dict, interval, **kwargs):
+    def plot_reads(self, read_ids, bams_dict, interval, output_format="svg", **kwargs):
         if not isinstance(interval, Interval):
             print("Error, Interval() required but not provided")
             return -1
 
-        first = True
+        first = False
         all_widgets = []
 
-        for read_id in read_ids:
-            if first:
-                all_widgets.append(self.plot_read(read_id, bams_dict, interval, **kwargs))
-                first = False
-            else:
-                all_widgets.append(self.plot_read(read_id, bams_dict, interval, with_coverage = False,
-                                                                                with_axis = False,
-                                                                                with_bed = False,
-                                                                                add_track_label = False,
-                                                                                add_reads_label = False,
-                                                                                **kwargs))
+        all_widgets.append(self.plot_interval(interval=interval, bams_dict={}, **kwargs).get_widget(output_format))
+
+        for bam_name, bam_file in bams_dict.items():
+            for read_id in read_ids:
+                #if first:
+                #    all_widgets.append(self.plot_read(read_id, {bam_name: bam_file}, interval, silence_error=True, **kwargs))
+                #    first = False
+                #else:
+                all_widgets.extend(self.plot_read(read_id, {bam_name: bam_file}, interval, output_format,
+                                                                                            silence_error=True,
+                                                                                            with_coverage = False,
+                                                                                            with_axis = False,
+                                                                                            with_bed = False,
+                                                                                            add_track_label = False,
+                                                                                            add_reads_label = False,
+                                                                                            **kwargs).children)
         return widgets.VBox(all_widgets)
 
 
