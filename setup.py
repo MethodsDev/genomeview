@@ -16,9 +16,13 @@ setup(
     description="genomeview",
     author="Noah Spies",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        'genomeview': ['templates/*.html'],
+    },
 
     # setup_requires=["pypandoc"],
-    install_requires=["pysam", "numpy", "pandas", "pyBigWig"], 
+    install_requires=["pysam", "numpy", "pandas", "pyBigWig", "intervaltree", "Jinja2"], 
     python_requires=">=3.3",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',

@@ -1,0 +1,10 @@
+{% for bam in bams %}
+<div id="{{ bam.unique_id }}" class="genomeview-content" style="display: block;">
+    <div class="genomeview-content static-genomeview-content">
+        {{ bam.coverage_svg | safe }}
+    </div>
+    <div id="svgContainer" class="resizable">
+        {{ bam.reads_svg | safe }}
+    </div>
+</div>
+{% endfor %}
