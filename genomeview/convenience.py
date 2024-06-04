@@ -193,10 +193,19 @@ class Configuration():
     def __init__(self, genome_fasta, bed_annotation, gtf_annotation = None, bed_color_fn=color_from_bed):
         self.source = genomeview.genomesource.FastaGenomeSource(genome_fasta)
         self.bed_annotation = bed_annotation
+        self.bed_color_fn = bed_color_fn
+
+        self.gene_name_to_gene_id = {}
+        self.gene_id_to_gene_name = {}
+        self.gene_to_transcripts = {}
+        self.transcript_to_gene = {}
+        self.gene_to_exons = {}
+        self.transcript_to_exons = {}
+        self.id_to_coordinates = {}
+
         if gtf_annotation:
             self.index_gtf(gtf_annotation)
-        self.bed_color_fn = bed_color_fn
-        # self.bam_track_class = genomeview.SingleEndBAMTrack
+
 
     def index_gtf(self, gtf_annotation):
         gene_id_regex = re.compile('gene_id "([a-zA-Z0-9\._]+)";')
@@ -205,13 +214,6 @@ class Configuration():
         exon_id_regex = re.compile('exon_id "([a-zA-Z0-9\._]+)";')
         # transcript_name_regex = re.compile('transcript_name "([a-zA-Z0-9\.]+)";')
         # protein_id_regex = re.compile('protein_id "([a-zA-Z0-9\.]+)";')
-
-        self.gene_name_to_gene_id = {}
-        self.gene_to_transcripts = {}
-        self.transcript_to_gene = {}
-        self.gene_to_exons = {}
-        self.transcript_to_exons = {}
-        self.id_to_coordinates = {}
 
         with gzip.open(gtf_annotation, "r") as gtf_file:
             for entry in pysam.tabix_iterator(gtf_file, pysam.asGTF()):
@@ -228,6 +230,7 @@ class Configuration():
                         gene_name = res.group(1)
 
                     self.gene_name_to_gene_id[gene_name] = gene_id
+                    self.gene_id_to_gene_name[gene_id] = gene_name
                     self.id_to_coordinates[gene_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
                     self.gene_to_transcripts[gene_id] = []
                     self.gene_to_exons[gene_id] = IntervalTree()
@@ -284,7 +287,7 @@ class Configuration():
     def add_bed_tracks_to_view(self, view):
         if self.bed_annotation:
             if type(self.bed_annotation) is list:
-                for bed_path in bed_annotation:
+                for bed_path in self.bed_annotation:
                     bed_track = genomeview.BEDTrack(bed_path)
                     bed_track.color_fn = self.bed_color_fn
                     view.add_track(bed_track)
