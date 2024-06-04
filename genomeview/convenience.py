@@ -341,6 +341,7 @@ class Configuration():
                             with_bed = True,
                             vertical_layout_reads = False,
                             include_secondary = False,
+                            quick_consensus = True,
                             row = None, 
                             view_width = None,
                             view_margin_y = None,
@@ -404,6 +405,7 @@ class Configuration():
                 if include_secondary:
                     coverage_track.include_secondary = True
                     bam_track.include_secondary = True
+                bam_track.quick_consensus = quick_consensus
                 bam_track.vertical_layout = vertical_layout_reads
                 gene_view.add_track(bam_track)
 
