@@ -68,6 +68,8 @@ class GraphTrack(Track):
 
     def ytopixels(self, yval):
         height = self.max_y - self.min_y
+        if height == 0:  # when no reads to plot so coverage is empty
+            return self.height
         return self.height - ((yval - self.min_y) / height * (self.height-2*self.ymargin) + self.ymargin)
         
     def render(self, renderer):
