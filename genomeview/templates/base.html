@@ -15,27 +15,34 @@
                 outline: none; 
                 font-size: 15px;
             }
+
+            /* Add a background color to the button if it is clicked on (add the .active class with JS), and when you move the mouse over it (hover) */
             .active, .collapsible:hover {
                 background-color: #ccc;
             }
+
             .genomeview-content {
                 padding: 0 0px;
                 display: block;
                 overflow: hidden;
                 background-color: #f1f1f1;
             }
+
             .custom-svg-container .static-genomeview-content {
                 display: block;
             }
+
             .custom-svg-container svg {
                 max-width: none;
                 height: auto;
             }
+
             .tab {
                 overflow: hidden;
                 border: 1px solid #ccc;
                 background-color: #f1f1f1;
             }
+
             .tab button {
                 background-color: inherit;
                 float: left;
@@ -46,18 +53,22 @@
                 transition: 0.3s;
                 font-size: 15px;
             }
+
             .tab button:hover {
                 background-color: #ddd;
             }
+
             .tab button.active {
                 background-color: #ccc;
             }
+
             .tabcontent {
                 display: none;
                 padding:6px 12px;
                 border: 1px solid #ccc;
                 border-top: none;
             }
+            
             .resizable {
                 overflow: auto;
                 resize: both;

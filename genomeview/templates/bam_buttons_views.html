@@ -1,5 +1,8 @@
 {% for bam in tab.bams %}
     <button type="button" class="collapsible active" data-target="{{ bam.unique_id }}">{{ bam.name }}</button>
+{% endfor %}
+    <br/>
+{% for bam in tab.bams %}
     <div id="{{ bam.unique_id }}" class="genomeview-content" style="display: block;">
         <div class="genomeview-content static-genomeview-content">
             {{ bam.coverage_svg | safe }}
@@ -8,4 +11,5 @@
             {{ bam.reads_svg | safe }}
         </div>
     </div>
+    <br/>
 {% endfor %}
