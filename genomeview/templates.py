@@ -30,8 +30,26 @@ def render_bam_views(bams):
 def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
     tabs = []
     for feature_name, virtual_bam_dict in bams_dict.items():
-        interval = config.id_to_coordinates[feature_name]
-        feature_name = config.gene_id_to_gene_name[config.transcript_to_gene[feature_name]] + "_" + feature_name
+        (feature_id, feature_type) = config.get_feature_info(feature_name)
+
+
+        interval = config.id_to_coordinates[feature_id]
+        # feature_name = config.gene_id_to_gene_name[config.transcript_to_gene[feature_name]] + "_" + feature_name
+
+        gene_name = config.get_gene_name((feature_id, feature_type))
+        if gene_name != feature_name:
+            feature_name = gene_name + "_" + feature_name
+
+
+        shared_static_svg = config.plot_interval(
+            bams_dict={},
+            interval=interval,
+            with_reads=False,
+            with_coverage=False,
+            add_track_label=False,
+            **kwargs
+        )._repr_svg_()
+        
 
         bams = []
         for classification, virtual_bam in virtual_bam_dict.items():
@@ -43,6 +61,7 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
                 interval=interval,
                 with_reads=False,
                 with_coverage=True,
+                with_bed=False,
                 add_track_label=False,
                 fill_coverage=True,
                 **kwargs
@@ -64,12 +83,14 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
             bams.append({
                 'unique_id': unique_id,
                 'name': f"{feature_name}_{classification}",
-                'statis_svg': coverage_svg,
-                'resizable_svg': reads_svg
+                'static_svg': coverage_svg,
+                'resizable_svg': reads_svg,
+                'expended': True
             })
 
         tabs.append({
             'feature_name': feature_name,
+            'shared_static_svg': shared_static_svg,
             'bams': bams
         })
 

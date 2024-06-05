@@ -2,6 +2,14 @@
     <button type="button" class="collapsible {% if bam.expended %}active{% endif %}" data-target="{{ bam.unique_id }}">{{ bam.name }}</button>
 {% endfor %}
     <br/>
+
+{% if tab.shared_static_svg %}
+    <div class="genomeview-content static-genomeview-content">
+        {{ tab.shared_static_svg | safe }}
+    </div>
+{% endif %}
+
+
 {% for bam in tab.bams %}
     <div id="{{ bam.unique_id }}" class="genomeview-content" style="display: {% if bam.expended %}block{% else %}none{% endif %};">
         <div class="genomeview-content static-genomeview-content">
