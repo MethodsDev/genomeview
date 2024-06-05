@@ -208,10 +208,10 @@ class Configuration():
 
 
     def index_gtf(self, gtf_annotation):
-        gene_id_regex = re.compile('gene_id "([a-zA-Z0-9\._]+)";')
-        gene_name_regex = re.compile('gene_name "([a-zA-Z0-9\.]+)";')
+        gene_id_regex = re.compile('gene_id "([a-zA-Z0-9\.\-_]+)";')
+        gene_name_regex = re.compile('gene_name "([a-zA-Z0-9\.\-_]+)";')
         transcript_id_regex = re.compile('transcript_id "([a-zA-Z0-9\._\^\-]+=?)";')
-        exon_id_regex = re.compile('exon_id "([a-zA-Z0-9\._]+)";')
+        exon_id_regex = re.compile('exon_id "([a-zA-Z0-9\.\-_]+)";')
         # transcript_name_regex = re.compile('transcript_name "([a-zA-Z0-9\.]+)";')
         # protein_id_regex = re.compile('protein_id "([a-zA-Z0-9\.]+)";')
 
@@ -228,9 +228,9 @@ class Configuration():
                     res = gene_name_regex.search(entry.attributes)
                     if res:
                         gene_name = res.group(1)
+                        self.gene_name_to_gene_id[gene_name] = gene_id
+                        self.gene_id_to_gene_name[gene_id] = gene_name
 
-                    self.gene_name_to_gene_id[gene_name] = gene_id
-                    self.gene_id_to_gene_name[gene_id] = gene_name
                     self.id_to_coordinates[gene_id] = Interval(entry.start, entry.end, entry.contig + entry.strand)
                     self.gene_to_transcripts[gene_id] = []
                     self.gene_to_exons[gene_id] = IntervalTree()
@@ -557,6 +557,27 @@ class Configuration():
         
         return(feature_id, feature_type)
 
+
+    def get_gene_name(self, feature_info):
+        (feature_id, feature_type) = feature_info
+        if feature_type == "transcript":
+            if feature_id not in self.transcript_to_gene:
+                print("transcript not associated with any gene")
+                return feature_id
+            feature_id = self.transcript_to_gene[feature_id]
+            feature_type = "gene"
+
+        if feature_type == "gene":
+            if feature_id in self.gene_name_to_gene_id:
+                return feature_id
+            elif feature_id in self.gene_id_to_gene_name:
+                return self.gene_id_to_gene_name[feature_id]
+            else:
+                print("no gene name associated with this gene id")
+                return feature_id
+
+        print("unknown feature type")
+        return feature_id
 
 
     def plot_feature(self, feature, **kwargs):
