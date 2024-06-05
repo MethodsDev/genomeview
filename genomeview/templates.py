@@ -64,8 +64,8 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
             bams.append({
                 'unique_id': unique_id,
                 'name': f"{feature_name}_{classification}",
-                'coverage_svg': coverage_svg,
-                'reads_svg': reads_svg
+                'statis_svg': coverage_svg,
+                'resizable_svg': reads_svg
             })
 
         tabs.append({
