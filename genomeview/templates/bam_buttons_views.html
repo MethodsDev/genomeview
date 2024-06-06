@@ -10,13 +10,13 @@
 {% endif %}
 
 
-{% for bam in tab.bams %}
+{% for tab_section in tab.tab_sections %}
     <div id="{{ bam.unique_id }}" class="genomeview-content" style="display: {% if bam.expended %}block{% else %}none{% endif %};">
         <div class="genomeview-content static-genomeview-content">
-            {{ bam.static_svg | safe }}
+            {{ tab_section.static_svg | safe }}
         </div>
         <div id="svgContainer" class="resizable">
-            {{ bam.resizable_svg | safe }}
+            {{ tab_section.resizable_svg | safe }}
         </div>
     </div>
     <br/>

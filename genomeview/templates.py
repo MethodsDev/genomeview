@@ -51,7 +51,7 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
         )._repr_svg_()
         
 
-        bams = []
+        tab_sections = []
         for classification, virtual_bam in virtual_bam_dict.items():
             if virtual_bam is None:
                 continue
@@ -80,7 +80,7 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
                 **kwargs
             )._repr_svg_()
 
-            bams.append({
+            tab_sections.append({
                 'unique_id': unique_id,
                 'name': f"{feature_name}_{classification}",
                 'static_svg': coverage_svg,
@@ -91,7 +91,7 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
         tabs.append({
             'feature_name': feature_name,
             'shared_static_svg': shared_static_svg,
-            'bams': bams
+            'tab_sections': tab_sections
         })
 
     return render_tab_titles(tabs, page_title)
