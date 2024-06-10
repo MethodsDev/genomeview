@@ -1,5 +1,5 @@
-{% for bam in tab.bams %}
-    <button type="button" class="collapsible {% if bam.expended %}active{% endif %}" data-target="{{ bam.unique_id }}">{{ bam.name }}</button>
+{% for tab in tab.tab_sections %}
+    <button type="button" class="collapsible {% if tab.expended %}active{% endif %}" data-target="{{ tab.unique_id }}">{{ tab.unique_id }}</button>
 {% endfor %}
     <br/>
 
@@ -11,7 +11,7 @@
 
 
 {% for tab_section in tab.tab_sections %}
-    <div id="{{ bam.unique_id }}" class="genomeview-content" style="display: {% if bam.expended %}block{% else %}none{% endif %};">
+    <div id="{{ tab_section.unique_id }}" class="genomeview-content" style="display: {% if tab_section.expended %}block{% else %}none{% endif %};">
         <div class="genomeview-content static-genomeview-content">
             {{ tab_section.static_svg | safe }}
         </div>

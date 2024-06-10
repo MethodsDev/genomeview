@@ -6,8 +6,10 @@ import pysam
 import inspect
 import ipywidgets as widgets
 import re
+from functools import partial
 
 from intervaltree import Interval, IntervalTree
+from Bio.Seq import Seq
 
 import genomeview
 from genomeview import utilities
@@ -165,6 +167,79 @@ def color_from_bed(interval):
         return "rgb(" + interval.tx.color + ")"
     else:
         return genomeview.color_by_strand(interval)
+
+
+def get_bam_opener(bam):
+    if isinstance(bam, genomeview.VirtualBAM):
+        opener_fn = lambda x: x
+    else:
+        opener_fn = pysam.AlignmentFile
+    return opener_fn
+ 
+
+# similar to regular pysam.AlignmentSegment.get_tag() but instead of raising a KeyError when tag is missing, just return None
+def get_read_tag(read, tag="CB"):
+    if not read.has_tag(tag):
+        return None
+
+    return read.get_tag(tag)
+
+
+def get_haasstyle_read_barcode(read):
+    return Seq(read.query_name.split("^")[0]).reverse_complement()
+
+
+def is_in_whitelist(ident, whitelist):
+    if isinstance(whitelist, dict):
+        for key, whitelist in whitelist.items():
+            if ident in whitelist:
+                return key
+    elif isinstance(whitelist, list) or isinstance(whitelist, set):
+        if ident in whitelist:
+            return "all"
+    return None
+
+
+# whitelist_dict in the form of {condition: whitelisted_barcodes}
+def sort_bam_reads_by_whitelist(bam_file, interval, whitelist=None, key_getter=None):
+    if whitelist is None:
+        return {"all": bam_file}
+
+    if key_getter is None:
+        key_getter = partial(get_read_tag, tag="CB")
+
+    opener_fn = get_bam_opener(bam_file)
+
+    tmp_reads = {}
+    with opener_fn(bam_file) as bam:
+        refs = bam.references
+        for read in bam.fetch(interval.chrom, interval.begin, interval.end):
+            if read.is_unmapped or read.is_secondary:
+                continue
+
+            cell_barcode = key_getter(read)
+            if not cell_barcode:
+                continue
+
+#            if whitelist:
+            key = is_in_whitelist(cell_barcode, whitelist)
+            if key:
+                if key not in tmp_reads:
+                    tmp_reads[key] = []
+                tmp_reads[key].append(read)
+#            else:  # accept all reads if no whitelist is provided
+#                if "all" not in tmp_reads:
+#                    tmp_reads["all"] = []
+#                tmp_reads["all"].append(read)
+    
+    virtual_bams_dict = {}
+    for key, reads in tmp_reads.items():
+        virtual_bams_dict[key] = genomeview.VirtualBAM(reads, refs)
+
+    return virtual_bams_dict
+
+
+
 
 
 # adding chrom and strand accessors for Interval from data slot based on the usage made in the code below
@@ -504,7 +579,7 @@ class Configuration():
         if feature in self.gene_name_to_gene_id:
             feature_id = self.gene_name_to_gene_id[feature]
             feature_type = "gene"
-        elif feature in self.gene_to_exons:
+        elif feature in self.gene_id_to_gene_name:
             feature_id = feature
             feature_type = "gene"
         elif feature in self.transcript_to_exons:
@@ -517,8 +592,17 @@ class Configuration():
         return(feature_id, feature_type)
 
 
+    def get_interval_from_feature(self, feature):
+        (feature_id, feature_type) = self.get_feature_info(feature)
+        return self.id_to_coordinates[feature_id]
+
+
     def get_gene_name(self, feature_info):
-        (feature_id, feature_type) = feature_info
+        if isinstance(feature_info, tuple):
+            (feature_id, feature_type) = feature_info
+        else:
+            (feature_id, feature_type) = self.get_feature_info(feature_info)
+
         if feature_type == "transcript":
             if feature_id not in self.transcript_to_gene:
                 print("transcript not associated with any gene")
@@ -813,6 +897,137 @@ class Configuration():
 
         doc.elements.append(row)
         return doc
+
+
+    def get_gene_tab_title(self, feature_name):
+
+        (feature_id, feature_type) = self.get_feature_info(feature_name)
+        gene_name = self.get_gene_name((feature_id, feature_type))
+        if gene_name != feature_name:
+            feature_name = gene_name + "_" + feature_name
+        return feature_name
+                
+
+    def organize_tab_section(self, bam_dict, interval, tab_name, **kwargs):
+
+        shared_static_svg = self.plot_interval(
+            bams_dict={},
+            interval=interval,
+            with_reads=False,
+            with_coverage=False,
+            add_track_label=False,
+            **kwargs
+        )._repr_svg_()
+        
+        tab_sections = []
+        for classification, bam in bam_dict.items():
+            if bam is None:
+                continue
+            unique_id = f"{tab_name}_{classification}"
+
+            coverage_svg = self.plot_interval(
+                bams_dict = {classification: bam},
+                interval = interval,
+                with_reads = False,
+                with_coverage = True,
+                with_bed = False,
+                add_track_label = False,
+                fill_coverage = True,
+                **kwargs
+            )._repr_svg_()
+
+            reads_svg = self.plot_interval(
+                bams_dict = {classification: bam},
+                interval = interval,
+                with_reads = True,
+                with_coverage = False,
+                with_axis = False,
+                with_bed = False,
+                add_track_label = False,
+                add_reads_label = False,
+                vertical_layout_reads = True,
+                **kwargs
+            )._repr_svg_()
+
+            tab_sections.append({
+                'unique_id': unique_id,
+                # 'name': f"{tab_name}_{classification}",
+                'static_svg': coverage_svg,
+                'resizable_svg': reads_svg,
+                'expended': True
+            })
+
+        return {'tab_name': tab_name,
+                'shared_static_svg': shared_static_svg,
+                'tab_sections': tab_sections}
+
+
+
+    def organize_tabs(self,
+                      bams_dict_dict,
+                      tab_title_fn = None,  # function that takes a feature_name/id or tuple(feature_id, feature_type) as input
+                      **kwargs):
+
+        if tab_title_fn is None:
+            tab_title_fn = self.get_gene_tab_title
+
+        tabs = []
+        for feature_name, bams_dict in bams_dict_dict.items():
+            print(feature_name)
+            (feature_id, feature_type) = self.get_feature_info(feature_name)
+            interval = self.id_to_coordinates[feature_id]
+            
+            print("feature name: " + feature_name)
+            print("feature id: " + feature_id)
+            print("tab title name: " + tab_title_fn(feature_id)) 
+            tabs.append(self.organize_tab_section(bams_dict, interval, tab_title_fn(feature_id), **kwargs))
+
+        return tabs
+
+
+    def plot_by_features_as_tab(self,
+                                bam_file,
+                                features_list,
+                                page_title = "genomeview",
+                                barcode_whitelist = None,
+                                barcode_from = "tag:CB",  # can provide a (partial) callable or "tag:__" to use a BAM tag
+                                **kwargs):
+
+        virtual_bam_dict = {}
+        if barcode_from is not None and barcode_whitelist is not None:
+            barcode_getter = None
+            if callable(barcode_from):
+                barcode_getter = barcode_from
+            elif isinstance(barcode_from, str):
+                if barcode_from[:4] == "tag:":
+                    barcode_getter = partial(get_read_tag, tag=barcode_from[-2:])
+
+            if barcode_getter is None:
+                print("provided a barcode_from argument but it was not recognized")
+                return -1
+
+
+            for feature in features_list:
+                interval = self.get_interval_from_feature(feature)
+
+                #for bam_name, bam_file in bams_dict.items():
+                virtual_bam_dict[feature] = sort_bam_reads_by_whitelist(bam_file,
+                                                                        interval,
+                                                                        whitelist = barcode_whitelist,
+                                                                        key_getter = barcode_getter)
+
+
+        tabs = self.organize_tabs(virtual_bam_dict, **kwargs)
+
+        return genomeview.templates.render_tab_titles(tabs, page_title)
+
+
+
+
+
+
+
+
 
 
 
