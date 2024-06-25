@@ -8,7 +8,7 @@ from genomeview.quickconsensus import *
 from genomeview.axis import *
 from genomeview.track import *
 from genomeview.bamtrack import *
-from genomeview.bedtrack import BEDTrack
+from genomeview.bedtrack import BEDTrack, VirtualBEDTrack
 from genomeview.graphtrack import *
 from genomeview.intervaltrack import *
 

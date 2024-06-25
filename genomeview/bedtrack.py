@@ -296,13 +296,19 @@ class BEDTrack(IntervalTrack):
 
 
 class VirtualBEDTrack(BEDTrack):
-    #def __init__(self, bed_path, ):
-    #    super().__init__(bed_path)
 
-    def index(self, chrom, start, end, field_defs):
-        self.transcripts = []
-        for transcript in bed_fetch(self.bed_path, chrom, start, end, field_defs=field_defs):
+    def __init__(self, transcripts=[], name=None):
+        super().__init__(None, name=name)
+        self.transcripts = transcripts
+
+
+    def index(self, bed_path, chrom, start, end, field_defs=None):
+        if self.transcripts is None:
+            self.transcripts = []
+
+        for transcript in bed_fetch(bed_path, chrom, start, end, field_defs):
             self.transcripts.append(transcript)
+
 
     def fetch(self, chrom=None, start=None, end=None, field_defs=None):
         yield from self.transcripts
