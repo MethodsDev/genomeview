@@ -239,26 +239,26 @@ def get_read_tag(read, tag):
 
 class CellBarcode(ABC):
     @abstractmethod
-    def get_barcode(read):
+    def get_barcode(self, read):
     # def get_barcode(self, read):
         pass
 
 
 class HaasStyleCellBarcode(CellBarcode):
-    def get_barcode(read):
+    def get_barcode(self, read):
     # def get_barcode(self, read):
         return Seq(read.query_name.split("^")[0]).reverse_complement()
 
 
 class ONTCellBarcode(CellBarcode):
-    def get_barcode(read):
+    def get_barcode(self, read):
     # def get_barcode(self, read):
         return get_read_tag("BC")
 
 
 # 10X, PipSeq
 class StandardCellBarcode(CellBarcode):
-    def get_barcode(read):
+    def get_barcode(self, read):
     # def get_barcode(self, read):
         return get_read_tag("CB")
 
@@ -280,7 +280,7 @@ def split_bam_by_cellbarcode_whitelist(bam_name,
                                        bam_file,
                                        interval,
                                        cellbarcode_whitelist=None,
-                                       cellbarcode_from=StandardCellBarcode):
+                                       cellbarcode_from=StandardCellBarcode()):
     if cellbarcode_whitelist is None:
         return {bam_name + "_all": bam_file}
 
