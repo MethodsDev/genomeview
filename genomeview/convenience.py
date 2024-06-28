@@ -408,8 +408,10 @@ class IsoquantSubstringAnnotationMatching(AnnotationMatching):
             return True
         else:
             return False
+
+
 def split_bam_by_classification(bam_file,
-                                bam_name,
+                                name_prefix,
                                 interval,
                                 classification_from,
                                 cellbarcode_whitelist = None,
@@ -436,15 +438,15 @@ def split_bam_by_classification(bam_file,
 
             classifications = classification_from.get_classification(read)
             if classifications is None:
-                if bam_name + "_unclassified" not in tmp_reads:
-                    tmp_reads[bam_name + "_unclassified"] = []
-                tmp_reads[bam_name + "_unclassified"].append(read)
+                if name_prefix + "_unclassified" not in tmp_reads:
+                    tmp_reads[name_prefix + "_unclassified"] = []
+                tmp_reads[name_prefix + "_unclassified"].append(read)
 
             else:
                 for classification in classifications:
-                    if bam_name + "_" + classification not in tmp_reads:
-                        tmp_reads[bam_name + "_" + classification] = []
-                    tmp_reads[bam_name + "_" + classification].append(read)
+                    if name_prefix + "_" + classification not in tmp_reads:
+                        tmp_reads[name_prefix + "_" + classification] = []
+                    tmp_reads[name_prefix + "_" + classification].append(read)
 
     
     virtual_bams_dict = {}
@@ -1210,11 +1212,11 @@ class Configuration:
 
 
 
-    def organize_tabs(self,
-                      bams_dict_dict,
-                      tab_title_fn = None,  # function that takes a feature_name/id or tuple(feature_id, feature_type) as input
-                      custom_bed_dict_dict = None,
-                      **kwargs):
+    def organize_tabs_by_feature(self,
+                                 bams_dict_dict,
+                                 custom_bed_dict_dict = None,
+                                 tab_title_fn = None,  # function that takes a feature_name/id or tuple(feature_id, feature_type) as input
+                                 **kwargs):
 
         if tab_title_fn is None:  # workaround because can't set a self.method as default parameter
             tab_title_fn = self.get_gene_tab_title
@@ -1228,10 +1230,6 @@ class Configuration:
             custom_bed_dict = None
             if custom_bed_dict_dict is not None and feature_name in custom_bed_dict_dict:
                 custom_bed_dict = custom_bed_dict_dict[feature_name]
-            # if custom_bed_dict_dict is None or feature_name not in custom_bed_dict_dict:
-            #     custom_bed_dict = None
-            # else:
-            #     custom_bed_dict = custom_bed_dict_dict[feature_name]
 
             tabs.append(self.organize_tab_section(bams_dict = bams_dict,
                                                   interval = interval, 
@@ -1240,6 +1238,32 @@ class Configuration:
                                                   **kwargs))
 
         return tabs
+
+
+    def organize_tabs_by_classification(self,
+                                        bams_dict_dict,
+                                        interval,
+                                        custom_bed_dict_dict = None,
+                                        tab_title_fn = None,  # function that takes a feature_name/id or tuple(feature_id, feature_type) as input
+                                        **kwargs):
+
+        if tab_title_fn is None:  # workaround because can't set a self.method as default parameter
+            tab_title_fn = lambda x: x
+
+        tabs = []
+        for classification, bams_dict in bams_dict_dict.items():
+            custom_bed_dict = None
+            if custom_bed_dict_dict is not None and classification in custom_bed_dict_dict:
+                custom_bed_dict = custom_bed_dict_dict[classification]
+
+            tabs.append(self.organize_tab_section(bams_dict = bams_dict,
+                                                  interval = interval, 
+                                                  tab_name = tab_title_fn(classification),
+                                                  custom_bed_dict = custom_bed_dict,
+                                                  **kwargs))
+
+        return tabs
+
 
 
     def plot_by_features_as_tab(self,
@@ -1274,28 +1298,29 @@ class Configuration:
                     virtual_bams_dict[feature][bam_name] = bam_file
 
 
-        tabs = self.organize_tabs(virtual_bams_dict, **kwargs)
+        tabs = self.organize_tabs_by_feature(virtual_bams_dict, **kwargs)
 
         return genomeview.templates.render_tab_titles(tabs, page_title)
 
 
+    # classified_dict has the classification as keys
+    def match_classification_to_bed_entries(self, classifications, interval, annotation_matching):
+        # parse known annotations
+        all_known_annotations = self.get_bed_entries(interval)
 
-    #  def plot_single_isoform()
+        virtual_bed_dict = {}
+        for known_annotation, virtual_bed in all_known_annotations.items():
+            for classification in classifications:
+                if "ambiguous" in classification or "unclassified" in classification:
+                    continue
+                else:
+                    if annotation_matching.match(classification, known_annotation):
+                        if classification not in virtual_bed_dict:
+                            virtual_bed_dict[classification] = virtual_bed
+                        else:
+                            virtual_bed_dict[classification].transcripts.extend(virtual_bed.transcripts)
 
-
-    # # single gene, single bam
-    # def split_bam_by_classification(self,
-    #                                 bam_file,
-    #                                 interval,
-    #                                 classification_from = IsoQuantClassification,
-    #                                 whitelist = None,
-    #                                 cellbarcode_from = None,
-    #                                 **kwargs):
-        
-    #     virtual_bams_dict = sort_bam_reads_by_classification(bam_file, interval, classification_from, whitelist, cellbarcode_from)
-
-    #     return virtual_bams_dict
-
+        return virtual_bed_dict
 
 
     # returns two dict with same keys, one with dicts of split BAMs, and one with associated BED entries
@@ -1319,7 +1344,7 @@ class Configuration:
         virtual_bams_dict = {}
         for bam_name, bam_file in bams_dict.items():
             virtual_bams_dict.update(split_bam_by_classification(bam_file = bam_file,
-                                                                 bam_name = bam_name,
+                                                                 name_prefix = bam_name,
                                                                  interval = interval,
                                                                  classification_from = classification_from,
                                                                  **kwargs))
@@ -1365,9 +1390,55 @@ class Configuration:
                                                                    **kwargs
                                                                    )
 
-        tabs = self.organize_tabs(bams_dict_dict = virtual_bams_dict_dict,
-                                  custom_bed_dict_dict = virtual_beds_dict_dict,
-                                  **kwargs)
+        tabs = self.organize_tabs_by_feature(bams_dict_dict = virtual_bams_dict_dict,
+                                             custom_bed_dict_dict = virtual_beds_dict_dict,
+                                             **kwargs)
+
+        return genomeview.templates.render_tab_titles(tabs, page_title)
+
+
+
+    def plot_by_classification_as_tabs(self,
+                                       bams_dict,
+                                       gene,
+                                       classification_from,
+                                       annotation_matching,
+                                       page_title = "Split by Classification",
+                                       **kwargs):
+
+        (feature_id, feature_type) = self.get_feature_info(gene)
+        if feature_type != "gene":
+            print("feature provided is not a gene")
+            return -1
+
+        interval = self.get_interval_from_feature((feature_id, feature_type))
+
+        virtual_bams_dict_dict = {}
+        for bam_name, bam_file in bams_dict.items():
+            for classification, virtual_bam in (split_bam_by_classification(bam_file = bam_file,
+                                                                            name_prefix = gene,
+                                                                            interval = interval,
+                                                                            classification_from = classification_from,
+                                                                            **kwargs)).items():
+                if classification not in virtual_bams_dict_dict:
+                    virtual_bams_dict_dict[classification] = {}
+                virtual_bams_dict_dict[classification][bam_name] = virtual_bam      
+
+        # parse known annotations
+        virtual_bed_dict = self.match_classification_to_bed_entries(virtual_bams_dict_dict.keys(), interval, annotation_matching)
+
+        virtual_beds_dict_dict = {}
+        for classification, virtual_bed in virtual_bed_dict.items():
+            if classification in virtual_bams_dict_dict:
+                if classification not in virtual_beds_dict_dict:
+                    virtual_beds_dict_dict[classification] = {}
+                virtual_beds_dict_dict[classification]['all'] = virtual_bed
+
+
+        tabs = self.organize_tabs_by_classification(bams_dict_dict = virtual_bams_dict_dict,
+                                                    interval = interval,
+                                                    custom_bed_dict_dict = virtual_beds_dict_dict,
+                                                    **kwargs)
 
         return genomeview.templates.render_tab_titles(tabs, page_title)
 
