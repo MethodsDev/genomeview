@@ -312,7 +312,7 @@ def split_bam_by_cellbarcode_whitelist(bam_name,
 
 class Classification(ABC):
     @abstractmethod
-    def get_classification(self, read):
+    def get_classification(self, read, gene_id):
         pass
         # should return a list of classifcations (because of possible ambiguous)
 
@@ -370,25 +370,27 @@ class IsoQuantClassification(Classification):
                         self.read_to_gene_id_to_isoform_id[values['read_id']][values['gene_id']] = []
                     self.read_to_gene_id_to_isoform_id[values['read_id']][values['gene_id']].append(values['isoform_id'])
 
-    def get_classification(self, read):
+                    if fields[0] not in self.read_to_gene_id_to_isoform_id:
+                        self.read_to_gene_id_to_isoform_id[fields[0]] = {}
+
+    def get_classification(self, read, gene_id):
         if read.query_name not in self.read_to_gene_id_to_isoform_id:
             return None
 
-        if self.read_to_assignment_type[read.query_name] == "ambiguous":
-            return ["ambiguous_isoform"]
+        if gene_id not in self.read_to_gene_id_to_isoform_id[read.query_name]:
+            return ["other_gene"]
 
-        if self.read_to_assignment_type[read.query_name] == "inconsistent":
-            return ["inconsistent_gene"]
+        if "unique" in self.read_to_assignment_type[read.query_name]:
+            return flatten(self.read_to_gene_id_to_isoform_id[read.query_name])
 
-        return flatten(self.read_to_gene_id_to_isoform_id[read.query_name])
-
+        return [self.read_to_assignment_type[read.query_name]]
 
 
 class BAMtagClassification(Classification):
     def __init__(tag):
         self.tag = tag
 
-    def get_classification(self, read):
+    def get_classification(self, read, gene_id):
         return get_read_tag(read, self.tag)
 
 
@@ -412,6 +414,7 @@ class IsoquantSubstringAnnotationMatching(AnnotationMatching):
 
 def split_bam_by_classification(bam_file,
                                 name_prefix,
+                                gene_id,
                                 interval,
                                 classification_from,
                                 cellbarcode_whitelist = None,
@@ -422,6 +425,9 @@ def split_bam_by_classification(bam_file,
 
     opener_fn = get_bam_opener(bam_file)
 
+    if name_prefix and name_prefix != "":
+        name_prefix += "_"
+
     tmp_reads = {}
     with opener_fn(bam_file) as bam:
         refs = bam.references
@@ -429,6 +435,7 @@ def split_bam_by_classification(bam_file,
             if read.is_unmapped or read.is_secondary:
                 continue
 
+            ## maybe still keep key name of barcode to use in name
             if cellbarcode_whitelist is not None:
                 cell_barcode = cellbarcode_getter.get_barcode(read)
                 if not cell_barcode:
@@ -436,17 +443,17 @@ def split_bam_by_classification(bam_file,
                 if is_in_whitelist(cell_barcode, cellbarcode_whitelist) is None:
                     continue
 
-            classifications = classification_from.get_classification(read)
+            classifications = classification_from.get_classification(read, gene_id)
             if classifications is None:
-                if name_prefix + "_unclassified" not in tmp_reads:
-                    tmp_reads[name_prefix + "_unclassified"] = []
-                tmp_reads[name_prefix + "_unclassified"].append(read)
+                if name_prefix + "unclassified" not in tmp_reads:
+                    tmp_reads[name_prefix + "unclassified"] = []
+                tmp_reads[name_prefix + "unclassified"].append(read)
 
             else:
                 for classification in classifications:
-                    if name_prefix + "_" + classification not in tmp_reads:
-                        tmp_reads[name_prefix + "_" + classification] = []
-                    tmp_reads[name_prefix + "_" + classification].append(read)
+                    if name_prefix + classification not in tmp_reads:
+                        tmp_reads[name_prefix + classification] = []
+                    tmp_reads[name_prefix + classification].append(read)
 
     
     virtual_bams_dict = {}
@@ -1330,8 +1337,6 @@ class Configuration:
                                           gene,
                                           classification_from,
                                           annotation_matching,
-                                          # cellbarcode_whitelist = None,
-                                          # cellbarcode_from = None,
                                           **kwargs):
         
         (feature_id, feature_type) = self.get_feature_info(gene)
@@ -1345,27 +1350,13 @@ class Configuration:
         for bam_name, bam_file in bams_dict.items():
             virtual_bams_dict.update(split_bam_by_classification(bam_file = bam_file,
                                                                  name_prefix = bam_name,
+                                                                 gene_id = feature_id,
                                                                  interval = interval,
                                                                  classification_from = classification_from,
                                                                  **kwargs))
 
         # parse known annotations
         virtual_bed_dict = self.match_classification_to_bed_entries(virtual_bams_dict.keys(), interval, annotation_matching)
-#        all_known_annotations = self.get_bed_entries(interval)
-#
-#        virtual_bed_dict = {}
-#        for known_annotation, virtual_bed in all_known_annotations.items():
-#            for classification in virtual_bams_dict.keys():
-#                if "ambiguous" in classification or "unclassified" in classification:
-#                    continue
-#                else:
-#                    if known_annotation in classification or known_annotation.split("|")[0] in classification:
-#                        if classification not in virtual_bed_dict:
-#                            virtual_bed_dict[classification] = virtual_bed
-#                        else:
-#                            virtual_bed_dict[classification].transcripts.extend(virtual_bed.transcripts)
-
-#        # assign known annotations to classifications by substring matching, could make this into a method parameter provided as input
 
         return (virtual_bams_dict, virtual_bed_dict)
         
@@ -1416,7 +1407,8 @@ class Configuration:
         virtual_bams_dict_dict = {}
         for bam_name, bam_file in bams_dict.items():
             for classification, virtual_bam in (split_bam_by_classification(bam_file = bam_file,
-                                                                            name_prefix = gene,
+                                                                            name_prefix = "",
+                                                                            gene_id = feature_id,
                                                                             interval = interval,
                                                                             classification_from = classification_from,
                                                                             **kwargs)).items():
