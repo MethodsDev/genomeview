@@ -168,7 +168,7 @@ class SingleEndBAMTrack(IntervalTrack):
         try:
             refseq = self.scale.get_seq(genome_position, genome_position + length)
         except AssertionError:
-            logging.warn("Unable to get reference sequence; will not draw mismatches")
+            logging.debug("Unable to get reference sequence; will not draw mismatches")
             return
 
         for i in range(length):
