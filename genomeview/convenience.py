@@ -384,6 +384,22 @@ class BAMtagClassification(Classification):
         return get_read_tag(read, self.tag)
 
 
+class AnnotationMatching(ABC):
+    @abstractmethod
+    def match(self, query_annotation, target_annotation):
+        pass
+        # should return True/False, target_annotation is the reference annotation
+
+
+class IsoquantSubstringAnnotationMatching(AnnotationMatching):
+    def match(self, query_annotation, target_annotation):
+        if query_annotation in target_annotation or \
+           target_annotation in query_annotation or \
+           query_annotation.split("|")[0] in target_annotation or \
+           target_annotation.split("|")[0] in query_annotation:
+            return True
+        else:
+            return False
 def split_bam_by_classification(bam_file,
                                 bam_name,
                                 interval,
@@ -1280,6 +1296,7 @@ class Configuration:
                                           bams_dict,
                                           gene,
                                           classification_from,
+                                          annotation_matching,
                                           # cellbarcode_whitelist = None,
                                           # cellbarcode_from = None,
                                           **kwargs):
@@ -1300,33 +1317,22 @@ class Configuration:
                                                                  **kwargs))
 
         # parse known annotations
-        all_known_annotations = self.get_bed_entries(interval)
-
-
-        virtual_bed_dict = {}
-        for known_annotation, virtual_bed in all_known_annotations.items():
-            for classification, virtual_bam in virtual_bams_dict.items():
-                if "ambiguous" in classification or "unclassified" in classification:
-                    continue
-                else:
-                    if known_annotation in classification or known_annotation.split("|")[0] in classification:
-                        if classification not in virtual_bed_dict:
-                            virtual_bed_dict[classification] = virtual_bed
-                        else:
-                            virtual_bed_dict[classification].transcripts.extend(virtual_bed.transcripts)
-
-#        # assign known annotations to classifications by substring matching, could make this into a method parameter provided as input
-#        for classification, virtual_bam in virtual_bams_dict.items():
-#            if "ambiguous" in classification or "unclassified" in classification:  # special classifications that are preserved
-#                continue  # making a virtualBED with None in it just means need to handle that case as well elsewhere
-#                # virtual_bed_dict[classification] = None
-#            else:
-#                for known_annotation, virtual_bed in all_known_annotations.items():
-#                    if classification in known_annotation:
-#                        if classification not in annotation_matched_virtual_bams_dict:
+        virtual_bed_dict = self.match_classification_to_bed_entries(virtual_bams_dict.keys(), interval, annotation_matching)
+#        all_known_annotations = self.get_bed_entries(interval)
+#
+#        virtual_bed_dict = {}
+#        for known_annotation, virtual_bed in all_known_annotations.items():
+#            for classification in virtual_bams_dict.keys():
+#                if "ambiguous" in classification or "unclassified" in classification:
+#                    continue
+#                else:
+#                    if known_annotation in classification or known_annotation.split("|")[0] in classification:
+#                        if classification not in virtual_bed_dict:
 #                            virtual_bed_dict[classification] = virtual_bed
 #                        else:
-#                            virtual_bed_dict[classification].transcripts.append(virtual_bed.transcripts)
+#                            virtual_bed_dict[classification].transcripts.extend(virtual_bed.transcripts)
+
+#        # assign known annotations to classifications by substring matching, could make this into a method parameter provided as input
 
         return (virtual_bams_dict, virtual_bed_dict)
         
@@ -1336,6 +1342,7 @@ class Configuration:
                                              bams_dict,
                                              features_list,
                                              classification_from,
+                                             annotation_matching,
                                              page_title = "Split by Classification, Plot by feature",
                                              **kwargs):
 
@@ -1346,6 +1353,7 @@ class Configuration:
                             self.split_bams_dict_by_classification(bams_dict = bams_dict,
                                                                    gene = feature,
                                                                    classification_from = classification_from,
+                                                                   annotation_matching = annotation_matching,
                                                                    **kwargs
                                                                    )
 
