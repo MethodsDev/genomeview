@@ -335,7 +335,15 @@ class IsoQuantClassification(Classification):
         self.read_to_gene_id_to_isoform_id = {}
         self.read_to_assignment_type = {}
         self.ambiguous_classification = ambiguous_classification
-        self.index(file_path)
+
+        if type(file_path) is list:
+            for fp in file_path:
+                self.index(fp)
+        elif type(file_path) is dict:
+            for fp in file_path.values():
+                self.index(fp)
+        else:
+            self.index(file_path)
 
     # call index() on file after creating the object so that the different Isoquant files can be indexed on the same object
     def index(self, file_path):
