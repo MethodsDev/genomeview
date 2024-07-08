@@ -1,4 +1,9 @@
 import pysam
+import os
+import gzip
+import bz2
+from collections.abc import MutableMapping
+
 
 def match_chrom_format(chrom, keys):
     if chrom in keys:
@@ -50,3 +55,31 @@ def is_long_frag_dataset(bam_path, n=1000):
             break
 
     return False
+
+
+
+def flatten(dictionary, separator='_'):
+    items = []
+    for key, value in dictionary.items():
+        if isinstance(value, MutableMapping):
+            for el in flatten(value, separator=separator):
+                items.append(key + separator + el)
+        elif isinstance(value, list):
+            for el in value:
+                items.append(key + separator + el)
+        else:
+            items.append(key + separator + value)
+    return items
+
+
+def my_hook_compressed(filename, mode):
+    if 'b' not in mode:
+        mode += 't'
+    ext = os.path.splitext(filename)[1]
+    if ext == '.gz':
+        return gzip.open(filename, mode)
+    elif ext == '.bz2':
+        return bz2.open(filename, mode)
+    else:
+        return open(filename, mode)
+

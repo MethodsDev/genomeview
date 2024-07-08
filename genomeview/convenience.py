@@ -1,6 +1,4 @@
 import collections
-from abc import ABC, abstractmethod
-from collections.abc import MutableMapping
 import gzip
 import math
 import os
@@ -11,7 +9,6 @@ import re
 from functools import partial
 
 from intervaltree import Interval, IntervalTree
-from Bio.Seq import Seq
 
 import genomeview
 from genomeview import utilities
@@ -93,108 +90,7 @@ def visualize_data(file_paths, chrom, start, end, reference_path=None,
     return doc
 
 
-
-# new general helpers
-def my_hook_compressed(filename, mode):
-    if 'b' not in mode:
-        mode += 't'
-    ext = os.path.splitext(filename)[1]
-    if ext == '.gz':
-        import gzip
-        return gzip.open(filename, mode)
-    elif ext == '.bz2':
-        import bz2
-        return bz2.open(filename, mode)
-    else:
-        return open(filename, mode)
-
-
-
-# def flatten(dictionary, parent_key='', separator='_'):
-#     items = []
-#     for key, value in dictionary.items():
-#         new_key = parent_key + separator + key if parent_key else key
-#         if isinstance(value, MutableMapping):
-#             items.extend(flatten(value, new_key, separator=separator).items())
-#         else:
-#             items.append((new_key, value))
-#    return dict(items)
-
-def flatten(dictionary, separator='_'):
-    items = []
-    for key, value in dictionary.items():
-        if isinstance(value, MutableMapping):
-            for el in flatten(value, separator=separator):
-                items.append(key + separator + el)
-        elif isinstance(value, list):
-            for el in value:
-                items.append(key + separator + el)
-        else:
-            items.append(key + separator + value)
-    return items
-
-
 ### newly added wrappers
-
-def get_regions_by_read_id(bam_file, read_id, opener_fn=pysam.AlignmentFile):
-    regions = []
-
-    with opener_fn(bam) as bam_in:
-        for read in bam_in.fetch():
-            if read.query_name != read_id:
-                continue
-
-            regions.append(Interval(read.reference_start, read.reference_end, bam_in.get_reference_name(read.reference_id) + "+" if read.is_forward else "-"))
-
-    return(regions)
-
-
-def find_read_in_bam(read_id, bams_dict, silence_error=False):
-    regions = []
-    virtual_bams = []
-
-    for key, value in bams_dict.items():
-        if isinstance(value, genomeview.VirtualBAM):
-            opener_fn = lambda x: x
-        else:
-            opener_fn = pysam.AlignmentFile
-
-        with opener_fn(value) as bam_in:
-            bam_refs = bam_in.references
-            for read in bam_in.fetch():
-                if read.query_name != read_id:
-                    continue
-                regions.append(Interval(read.reference_start, read.reference_end, read.reference_name + ("+" if read.is_forward else "-")))
-                virtual_bams.append(genomeview.VirtualBAM([read], bam_refs))
-    
-    if len(regions) == 0 and not silence_error:
-        print("Error: read either not found or not aligned")
-        return (-1, -1)
-
-    return (regions, virtual_bams)
-
-
-def get_virtualbam_max_coverage(coverage_bam):
-    all_starts = []
-    all_ends = []
-    for inter in sorted(coverage_bam.reads_interval_tree):
-        all_starts.append(inter.begin)
-        all_ends.append(inter.end)
-    all_ends.sort()
-    current_max = current_coverage = i = j = 0
-    while i < len(all_starts) or j < len(all_ends):
-        if i < len(all_starts) and all_starts[i] < all_ends[j]:
-            current_coverage += 1
-            i += 1
-            current_max = max(current_max, current_coverage)
-        elif i < len(all_starts):
-            current_coverage -= 1
-            j += 1
-        elif j < len(all_ends):
-            current_coverage -= 1
-            j += 1
-    return current_max
-
 
 class TighterSingleEndBAMTrack(genomeview.SingleEndBAMTrack):
     def __init__(self, *args, **kwdargs):
@@ -211,14 +107,6 @@ def color_from_bed(interval):
         return genomeview.color_by_strand(interval)
 
 
-def get_bam_opener(bam):
-    if isinstance(bam, genomeview.VirtualBAM):
-        opener_fn = lambda x: x
-    else:
-        opener_fn = pysam.AlignmentFile
-    return opener_fn
-
-
 def make_bed_track(bed, name=None): # , chrom=None, start=None, end=None):
     if isinstance(bed, genomeview.VirtualBEDTrack):
         # bed_track = genomeview.VirtualBEDTrack(bed, name)
@@ -227,241 +115,6 @@ def make_bed_track(bed, name=None): # , chrom=None, start=None, end=None):
     else:
         bed_track = genomeview.BEDTrack(bed, name)
     return bed_track
-
-
-# similar to regular pysam.AlignmentSegment.get_tag() but instead of raising a KeyError when tag is missing, just return None
-def get_read_tag(read, tag):
-    if not read.has_tag(tag):
-        return None
-
-    return read.get_tag(tag)
-
-
-class CellBarcode(ABC):
-    @abstractmethod
-    def get_barcode(self, read):
-    # def get_barcode(self, read):
-        pass
-
-
-class HaasStyleCellBarcode(CellBarcode):
-    def get_barcode(self, read):
-    # def get_barcode(self, read):
-        return Seq(read.query_name.split("^")[0]).reverse_complement()
-
-
-class ONTCellBarcode(CellBarcode):
-    def get_barcode(self, read):
-    # def get_barcode(self, read):
-        return get_read_tag("BC")
-
-
-# 10X, PipSeq
-class StandardCellBarcode(CellBarcode):
-    def get_barcode(self, read):
-    # def get_barcode(self, read):
-        return get_read_tag("CB")
-
-
-
-def is_in_whitelist(ident, whitelist):
-    if isinstance(whitelist, dict):
-        for key, whitelist in whitelist.items():
-            if ident in whitelist:
-                return key
-    elif isinstance(whitelist, list) or isinstance(whitelist, set):
-        if ident in whitelist:
-            return "all"
-    return None
-
-
-# whitelist_dict in the form of {condition: whitelisted_barcodes} or a plain list/set that gives the name "all"
-def split_bam_by_cellbarcode_whitelist(bam_name,
-                                       bam_file,
-                                       interval,
-                                       cellbarcode_whitelist=None,
-                                       cellbarcode_from=StandardCellBarcode()):
-    if cellbarcode_whitelist is None:
-        return {bam_name + "_all": bam_file}
-
-    opener_fn = get_bam_opener(bam_file)
-
-    tmp_reads = {}
-    with opener_fn(bam_file) as bam:
-        refs = bam.references
-        for read in bam.fetch(interval.chrom, interval.begin, interval.end):
-            if read.is_unmapped or read.is_secondary:
-                continue
-
-            cell_barcode = cellbarcode_from.get_barcode(read)
-            if not cell_barcode:
-                continue
-
-            key = is_in_whitelist(cell_barcode, cellbarcode_whitelist)
-            if key:
-                if key not in tmp_reads:
-                    tmp_reads[key] = []
-                tmp_reads[key].append(read)
-    
-    virtual_bams_dict = {}
-    for key, reads in tmp_reads.items():
-        virtual_bams_dict[bam_name + "_" + key] = genomeview.VirtualBAM(reads, refs)
-
-    return virtual_bams_dict
-
-
-class Classification(ABC):
-    @abstractmethod
-    def get_classification(self, read, gene_id):
-        pass
-        # should return a list of classifcations (because of possible ambiguous)
-
-
-# read_assignments.tsv(.gz)
-class IsoQuantClassification(Classification):
-    ISOQUANT_READ_ASSIGNMENTS_DEFS = {
-        "read_id":0,
-        "chr":1, 
-        "strand": 2,
-        "isoform_id": 3,
-        "gene_id":4, 
-        "assignment_type":5,
-        "assignment_events":6,
-        "exons":7,
-        "additional_info":8
-    }
-
-    def __init__(self, file_path, ambiguous_classification = True):
-        self.read_to_gene_id_to_isoform_id = {}
-        self.read_to_assignment_type = {}
-        self.ambiguous_classification = ambiguous_classification
-
-        if type(file_path) is list:
-            for fp in file_path:
-                self.index(fp)
-        elif type(file_path) is dict:
-            for fp in file_path.values():
-                self.index(fp)
-        else:
-            self.index(file_path)
-
-    # call index() on file after creating the object so that the different Isoquant files can be indexed on the same object
-    def index(self, file_path):
-        with my_hook_compressed(file_path, "rt") as f:
-            for line in f:
-                if line[0] == "#":
-                    continue
-
-                fields = line.rstrip().split("\t")
-                
-                values =  dict.fromkeys(self.ISOQUANT_READ_ASSIGNMENTS_DEFS)
-                for field_name, field in self.ISOQUANT_READ_ASSIGNMENTS_DEFS.items():
-                    cur_value = None
-                    if len(fields) > field:
-                        cur_value = fields[field]
-                    values[field_name] = cur_value
-
-                self.read_to_assignment_type[values['read_id']] = values['assignment_type']
-        
-                if values['isoform_id'] is not None and values['isoform_id'] != ".":
-                    if values['read_id'] not in self.read_to_gene_id_to_isoform_id:
-                        self.read_to_gene_id_to_isoform_id[values['read_id']] = {}
-                    if values['gene_id'] not in self.read_to_gene_id_to_isoform_id[values['read_id']]:
-                        self.read_to_gene_id_to_isoform_id[values['read_id']][values['gene_id']] = []
-                    self.read_to_gene_id_to_isoform_id[values['read_id']][values['gene_id']].append(values['isoform_id'])
-
-                    if fields[0] not in self.read_to_gene_id_to_isoform_id:
-                        self.read_to_gene_id_to_isoform_id[fields[0]] = {}
-
-    def get_classification(self, read, gene_id):
-        if read.query_name not in self.read_to_gene_id_to_isoform_id:
-            return None
-
-        if gene_id not in self.read_to_gene_id_to_isoform_id[read.query_name]:
-            return ["other_gene"]
-
-        if "unique" in self.read_to_assignment_type[read.query_name]:
-            return flatten(self.read_to_gene_id_to_isoform_id[read.query_name])
-
-        return [self.read_to_assignment_type[read.query_name]]
-
-
-class BAMtagClassification(Classification):
-    def __init__(tag):
-        self.tag = tag
-
-    def get_classification(self, read, gene_id):
-        return get_read_tag(read, self.tag)
-
-
-class AnnotationMatching(ABC):
-    @abstractmethod
-    def match(self, query_annotation, target_annotation):
-        pass
-        # should return True/False, target_annotation is the reference annotation
-
-
-class IsoquantSubstringAnnotationMatching(AnnotationMatching):
-    def match(self, query_annotation, target_annotation):
-        if query_annotation in target_annotation or \
-           target_annotation in query_annotation or \
-           query_annotation.split("|")[0] in target_annotation or \
-           target_annotation.split("|")[0] in query_annotation:
-            return True
-        else:
-            return False
-
-
-def split_bam_by_classification(bam_file,
-                                name_prefix,
-                                gene_id,
-                                interval,
-                                classification_from,
-                                cellbarcode_whitelist = None,
-                                cellbarcode_from = StandardCellBarcode):
-    if classification_from is None:
-        print("No way of getting classification provided")
-        return -1
-
-    opener_fn = get_bam_opener(bam_file)
-
-    if name_prefix and name_prefix != "":
-        name_prefix += "_"
-
-    tmp_reads = {}
-    with opener_fn(bam_file) as bam:
-        refs = bam.references
-        for read in bam.fetch(interval.chrom, interval.begin, interval.end):
-            if read.is_unmapped or read.is_secondary:
-                continue
-
-            ## maybe still keep key name of barcode to use in name
-            if cellbarcode_whitelist is not None:
-                cell_barcode = cellbarcode_getter.get_barcode(read)
-                if not cell_barcode:
-                    continue
-                if is_in_whitelist(cell_barcode, cellbarcode_whitelist) is None:
-                    continue
-
-            classifications = classification_from.get_classification(read, gene_id)
-            if classifications is None:
-                if name_prefix + "unclassified" not in tmp_reads:
-                    tmp_reads[name_prefix + "unclassified"] = []
-                tmp_reads[name_prefix + "unclassified"].append(read)
-
-            else:
-                for classification in classifications:
-                    if name_prefix + classification not in tmp_reads:
-                        tmp_reads[name_prefix + classification] = []
-                    tmp_reads[name_prefix + classification].append(read)
-
-    
-    virtual_bams_dict = {}
-    for key, reads in tmp_reads.items():
-        virtual_bams_dict[key] = genomeview.VirtualBAM(reads, refs)
-
-    return virtual_bams_dict
-
 
 
 # adding chrom and strand accessors for Interval from data slot based on the usage made in the code below
@@ -648,6 +301,37 @@ class Configuration:
                             tighter_track = False,
                             **kwargs):
 
+        """
+        Core method to generate a customizable view in a new row or append it to an existing row.
+        Requires the following arguments:
+            - start: start position of the view
+            - end: end position of the view
+            - chrom: chromosome/contig of the reference
+            - strand: strand specificity if any (currently unused)
+            - bams_dict: dictionnary of (virtual) BAMs to display (empty dict supported)
+
+        Support the following options:
+            - padding_perc: multiply the (end-start) window size by this multiplier to "pad" the view with for context. (Default: 0.1)
+            - add_track_label: label to add at the top of the view, default is the coordinates of the window displayed. Can be set to None. (Default: "auto")
+            - add_reads_label: label of each BAM track, default is the dictionnary key. Can be set to None. [future: add support for dict] (Default: "auto")
+            - add_coverage_label: label of BAM coverage track, default is the dictionnary key. Can be set to None. [future: add support for dict] (Default: "auto")
+            - with_reads: Boolean to control if reads are drawn. (Default: True)
+            - with_axis: Boolean to control if an axis is drawn. (Default: True)
+            - with_coverage: Boolean to control if a coverage track for each BAM is drawn. (Default: True)
+            - with_bed: Boolean to control if bed annotations are drawn. (Default: True)
+            - with_bed_label: Boolean to control if a label is displayed for each BED source. (Default: False)
+            - vertical_layout_reads: Boolean to control if reads are displayed in a vertical manner, meaning a single read per line, or not. (Default: False)
+            - include_secondary: Boolean to control if secondary alignments are drawn. (Default: False)
+            - quick_consensus: Boolean to control if quick consensus (hide SNPs that have a frequency lower than 0.2) mode is used. (Default: True)
+            - row: Row to which to append the view generated by this method. If None is provided, will create a new one. (Default: None)
+            - view_width: Width of the view in "pixels". (Default: None, which uses the global default of using that size of all views' width is defined, or divide the overall width evenly otherwise)
+            - view_margin_y: Size of the margin in "pixels" at the top and bottom of the view. (Default: None, which uses the global default of 5)
+            - fill_coverage: Boolean to control if the coverage track should be a filled solid or just an outline. (Default: False)
+            - coverage_track_max_y: Specify a value that should be the max on the y-axis of the coverage track (useful to compare BAMs or regions with different coverage depth by forcing a common axis). (Default: None)
+            - tighter_track: Boolean to control if the reads should be displayed in an alternate mode where they are thinner on the y-axis. (default: False)
+        """
+
+
         padding = math.ceil((end - start) * padding_perc)
 
         if row is None:
@@ -720,6 +404,17 @@ class Configuration:
     def add_single_view_row_to_plot(self, doc,
                                     interval = None, 
                                     data = None, **kwargs):
+        """
+        Helper that calls self.make_genomeview_row given a window to make a view for.
+        Required arguments:
+        - doc: Document object to which to add the view row
+        - one of:
+            - interval: an Interval(start, end, chrom + strand)
+            - data: a list in the format (*, Interval(start, end), chromosome, strand)
+
+        Optional arguments:
+        - anything that can be passed to make_genomeview_row()
+        """
 
         if data is not None:
             chrom = data[2]
@@ -742,6 +437,17 @@ class Configuration:
     def add_multi_view_row_to_plot(self, doc,
                                    interval_list = None, 
                                    data_list = None, **kwargs):
+        """
+        Helper that calls self.make_genomeview_row given a list of windows to make views for.
+        Required arguments:
+        - doc: Document object to which to add the view row
+        - one of:
+            - interval_list: a list of Interval(start, end, chrom + strand)
+            - data_list: a list of lists in the format (*, Interval(start, end), chromosome, strand)
+
+        Optional arguments:
+        - anything that can be passed to make_genomeview_row()
+        """
 
         row = genomeview.ViewRow("row")
 
@@ -770,6 +476,18 @@ class Configuration:
 
 
     def plot_interval(self, view_width = 1600, **kwargs):
+        """
+        Returns a Document with views for all the intervals provided.
+
+        Required argument:
+        - one of:
+            - interval: an Interval(start, end, chrom + strand)
+            - data: a list in the format (*, Interval(start, end), chromosome, strand)
+
+        Optional arguments:
+        - view_width: width of the view in "pixels". (Defautl: 1600)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         doc = genomeview.Document(view_width)
         return self.add_single_view_row_to_plot(doc, **kwargs)
@@ -777,9 +495,23 @@ class Configuration:
 
 
     def plot_intervals(self,
+                       view_width = 1600,
                        interval_list = None, 
                        data_list = None, 
                        N_per_row = 1,  **kwargs):
+        """
+        Returns a Document with views for all the intervals provided.
+
+        Required argument:
+        - one of either:
+            - interval_list: a list of Interval(start, end, chrom + strand)
+            - data_list: a list of lists in the format (*, Interval(start, end), chromosome, strand)
+
+        Optional arguments:
+        - view_width: width of the view in "pixels". (Defautl: 1600)
+        - N_per_row: How many views to have per row. (Default: 1)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         doc = genomeview.Document(view_width)
 
@@ -798,6 +530,13 @@ class Configuration:
         return doc
 
     def get_feature_info(self, feature):
+        """
+        Return a (feature_id, feature_type) tuple with the id of the feature and its type (gene/transcript/exon) given an id of name.
+
+        Required argument:
+        - feature: the feature name or id to look for in the internal index.
+        """
+
         feature_id = None
         feature_type = None
         if feature in self.gene_name_to_gene_id:
@@ -817,6 +556,13 @@ class Configuration:
 
 
     def get_interval_from_feature(self, feature):
+        """
+        Return the Interval with coordinates of a given feature.
+
+        Required argument:
+        - feature: the feature name, feature id, or (feature_id, feature_type) tuple, to look for in the internal index.
+        """
+
         if isinstance(feature, tuple):
             (feature_id, feature_type) = feature
         else:
@@ -824,11 +570,18 @@ class Configuration:
         return self.id_to_coordinates[feature_id]
 
 
-    def get_gene_name(self, feature_info):
-        if isinstance(feature_info, tuple):
-            (feature_id, feature_type) = feature_info
+    def get_gene_name(self, feature):
+        """
+        Return the name of the gene a given feature is part of.
+
+        Required argument:
+        - feature: the feature name, feature id, or (feature_id, feature_type) tuple, to look for in the internal index.
+        """
+
+        if isinstance(feature, tuple):
+            (feature_id, feature_type) = feature
         else:
-            (feature_id, feature_type) = self.get_feature_info(feature_info)
+            (feature_id, feature_type) = self.get_feature_info(feature)
 
         if feature_type == "transcript":
             if feature_id not in self.transcript_to_gene:
@@ -851,19 +604,37 @@ class Configuration:
 
 
     def plot_feature(self, feature, **kwargs):
+        """
+        Returns a Document with the provided feature.
 
-        (feature_id, feature_type) = self.get_feature_info(feature)
+        Required argument:
+        - feature: the feature id or name of the feature of interest.
 
+        Optional arguments:
+        - anything that can be passed to make_genomeview_row()
+        """
+
+        if isinstance(feature, tuple):
+            (feature_id, feature_type) = feature
+        else:
+            (feature_id, feature_type) = self.get_feature_info(feature)
         return self.plot_interval(interval = self.id_to_coordinates[feature_id], **kwargs)
 
     # plot_feature for a list in tabs
-    def plot_features(self, 
+    def plot_features(self,
                       features,
                       output_format="svg",
                       **kwargs):
+        """
+        Returns an ipywidget where each tab is a view for one of the features provided.
 
-        # params = inspect.signature(self.plot_feature).parameters
-        # filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
+        Required argument:
+        - features: the list of features (id or name, can be mixed) of interest.
+
+        Optional arguments:
+        - output_format: format of the views, "svg" or "png". (Default: "svg")
+        - anything that can be passed to make_genomeview_row()
+        """
 
         features_tab = widgets.Tab()
         tab_contents = []
@@ -878,11 +649,19 @@ class Configuration:
 
 
     def plot_read(self, read_id, bams_dict, interval="auto", output_format="svg", silence_error=False, **kwargs):
+        """
+        Returns an ipywidget of all the windows in which a given read aligns.
 
-        # Get the parameter names of plot_interval
-        # params = inspect.signature(find_read_in_bam).parameters
-        # Filter kwargs to only include keys that are in plot_interval's parameters
-        # filtered_kwargs = {k: v for k, v in kwargs.items() if k in params}
+        Required argument:
+        - read_id: the id of the read of interest.
+        - bams_dict: the dict of BAMs in which the read should be found
+
+        Optional arguments:
+        - interval: "auto" to automatically select the windows to plot based on where the read aligns. Can otherwise be set to an Interval of choice, but might result in empty views when the read does not align in that window. (Default: "auto")
+        - output_format: format of the views, "svg" or "png". (Default: "svg")
+        - silence_error: Boolean to control if read not being found in one of the BAMs is reported (useful when providing a dict of BAMs but the read is only present in one of them). (Default: False)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         (regions, virtual_bams) = find_read_in_bam(read_id, bams_dict, silence_error)
 
@@ -903,6 +682,20 @@ class Configuration:
 
 
     def plot_reads(self, read_ids, bams_dict, interval, output_format="svg", **kwargs):
+        """
+        Returns an ipywidget of all the windows in which any of the reads align.
+
+        Required argument:
+        - read_ids: the list of ids of the reads of interest.
+        - bams_dict: the dict of BAMs in which the read should be found
+
+        Optional arguments:
+        - interval: "auto" to automatically select the windows to plot based on where the read aligns. Can otherwise be set to an Interval of choice, but might result in empty views when the read does not align in that window. (Default: "auto")
+        - output_format: format of the views, "svg" or "png". (Default: "svg")
+        - silence_error: Boolean to control if read not being found in one of the BAMs is reported (useful when providing a dict of BAMs but the read is only present in one of them). (Default: False)
+        - anything that can be passed to make_genomeview_row()
+        """
+
         if not isinstance(interval, Interval):
             print("Error, Interval() required but not provided")
             return -1
@@ -932,6 +725,22 @@ class Configuration:
                    view_width = 1600,
                    as_widget = False,
                    **kwargs):
+        """
+        Returns a Document where only the windows of the exons of the provided feature are displayed.
+
+        Required argument:
+        - feature: the feature of interest
+
+        Optional arguments:
+        - merge_exons: Boolean to control whether to merge overlapping exons from different isoforms or keep them separate. Merging prevents redundence of parts of the view. (Default: True)
+        - shared_max_coverage: Boolean to control if the y-axis of the coverage tracks should be consistant across a row. Alternatively can provide an arbitrary value to use as the max for the y-axis. (Default: True)
+        - normalize_interval_width: Boolean to control if all exons should have the same view width rather than being proportional to the sequence length. (Default: False)
+        - N_per_row: How many exons to plot per row at most. (Default: 99999, basically all exons on a single row)
+        - view_width: width of the view in "pixels". (Defautl: 1600)
+        - padding_perc: Padding around each exon in proportion of the size of the smallest exon. (Default: 0.1)
+        - as_widget: Boolean to control if the result is returned as a dropdown selection menu ipywidget where each tab is an exon. (Default: False)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         (feature_id, feature_type) = self.get_feature_info(feature)
         
@@ -974,6 +783,19 @@ class Configuration:
                               view_width = 1600,
                               as_widget = False, 
                               **kwargs):
+        """
+        Returns a Document where each known splice junction (according to isoforms) is displayed as a side by side exons view, one per row.
+
+        Required argument:
+        - feature: the feature of interest
+
+        Optional arguments:
+        - shared_max_coverage: Boolean to control if the y-axis of the coverage tracks should be consistant across a row. Alternatively can provide an arbitrary value to use as the max for the y-axis. (Default: True)
+        - view_width: width of the view in "pixels". (Defautl: 1600)
+        - padding_perc: Padding around each exon in proportion of the size of the smallest exon. (Default: 0.1)
+        - as_widget: Boolean to control if the result is returned as a dropdown selection menu ipywidget where each tab is a splice junction. (Default: False)
+        - anything that can be passed to make_genomeview_row()
+        """
 
 
         (feature_id, feature_type) = self.get_feature_info(feature)
@@ -1034,9 +856,21 @@ class Configuration:
                                            include_secondary = False,
                                            row = None, 
                                            normalize_interval_width = False,
-                                           shared_max_coverage = False,
+                                           shared_max_coverage = True,
                                            **kwargs):
+        """
+        Adds a row to the provided doc for the given intervals such that reads ordering and spacing is consistant across them.
 
+        Required argument:
+        - doc: the Document to add to.
+        - intervals_list: a list of Intervals to make the views for.
+        - bams_dict: a dict of (virtual) BAMs to display the reads from.
+
+        Optional arguments:
+        - normalize_interval_width: Boolean to control if all intervals should have the same view width rather than being proportional to the sequence length. (Default: False)
+        - shared_max_coverage: Boolean to control if the y-axis of the coverage tracks should be consistant across a row. Alternatively can provide an arbitrary value to use as the max for the y-axis. (Default: True)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         if row is None:
             row = genomeview.ViewRow("row")
@@ -1066,7 +900,8 @@ class Configuration:
             all_reads_for_coverage = set()
 
             bam_refs = None
-            with pysam.AlignmentFile(value, "rb") as bam:
+            opener_fn = get_bam_opener(value)
+            with opener_fn(value) as bam:
                 bam_refs = bam.references
                 for interval in intervals_list:
                     for read in bam.fetch(interval.chrom, interval.begin - padding, interval.end + padding):
@@ -1085,7 +920,7 @@ class Configuration:
                 max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
 
         if shared_max_coverage:
-            if type(shared_max_coverage) is bool:  # is True but not a value
+            if type(shared_max_coverage) is bool:  # is True and actually a Boolean rather than an Integer
                 max_coverage_dict = max(max_coverage_dict.values())
             else:
                 max_coverage_dict = shared_max_coverage
@@ -1126,13 +961,19 @@ class Configuration:
         return doc
 
 
-    def get_gene_tab_title(self, feature_name):
+    def get_gene_tab_title(self, feature):
+        """
+        Return the name of the gene the feature is part of, or returns back feature.
 
-        (feature_id, feature_type) = self.get_feature_info(feature_name)
+        Required argument:
+        - feature: name or id of the feature. 
+        """
+
+        (feature_id, feature_type) = self.get_feature_info(feature)
         gene_name = self.get_gene_name((feature_id, feature_type))
-        if gene_name != feature_name:
-            feature_name = gene_name  # + "_" + feature_name
-        return feature_name
+        if gene_name != feature:
+            feature = gene_name  # + "_" + feature
+        return feature
                 
 
     # custom bed dict accepts a dict with the same keys are bams_dict only
@@ -1142,7 +983,21 @@ class Configuration:
                              tab_name,
                              custom_bed_dict = None,
                              with_coverage = True,
+                             expended = False,
                              **kwargs):
+        """
+        Generate views and subtabs for a given tab. Returns a dict to store the tab content so it can be used with a template.
+
+        Required arguments:
+        - bams_dict: a dict of (virtual) BAMs to display the reads from.
+        - interval: the Interval to draw.
+        - tab_name: unique name of this tab.
+
+        Optional arguments:
+        - custom_bed_dict: a dict of (virtual) BED entries to use instead of the internally reference BED for the shared annotations of this tab. For keys that are the same as the bams_dict, the specific BED entries will be used for the matching BAM subtab.
+        - expended: Boolean to control if the subtabs should be expended by default within the tab. (Default: False)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         bed_config = self.shallow_copy()
 
@@ -1180,7 +1035,7 @@ class Configuration:
                                                        with_coverage = False,
                                                        add_track_label = False,
                                                        **kwargs
-                                                      )._repr_svg_()
+                                                      )._repr_svg_() + "</br>"
 
             if with_coverage:
                 static_svg += self.plot_interval(bams_dict = {key: bam},
@@ -1210,7 +1065,7 @@ class Configuration:
                 # 'name': f"{tab_name}_{key}",
                 'static_svg': static_svg,
                 'resizable_svg': resizable_svg,
-                'expended': True
+                'expended': expended
             })
 
         return {'tab_name': tab_name,
@@ -1224,6 +1079,19 @@ class Configuration:
                                  custom_bed_dict_dict = None,
                                  tab_title_fn = None,  # function that takes a feature_name/id or tuple(feature_id, feature_type) as input
                                  **kwargs):
+        """
+        Returns a dict to store all the tabs content so it can be used with a template.
+
+        Required arguments:
+        - bams_dict_dict: a dict of dict of (virtual) BAMs to display the reads from. Primary keys are the feature keys, secondary keys are the BAM names.
+        - interval: the Interval to draw.
+
+        Optional arguments:
+        - custom_bed_dict_dict: a dict of dict of (virtual) BED entries to use instead of the internally reference BED for the shared annotations for each tab and each BAM. For subkeys that are the same as the bams_dict_dict subkeys, the specific BED entries will be used for the matching BAM subtab.
+        - tab_title_fn: Method to use to generate unique tab names when provided a feature_id. (Default: convenience.get_gene_tab_title())
+        - expended: Boolean to control if the subtabs should be expended by default within the tab. (Default: False)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         if tab_title_fn is None:  # workaround because can't set a self.method as default parameter
             tab_title_fn = self.get_gene_tab_title
@@ -1253,6 +1121,19 @@ class Configuration:
                                         custom_bed_dict_dict = None,
                                         tab_title_fn = None,  # function that takes a feature_name/id or tuple(feature_id, feature_type) as input
                                         **kwargs):
+        """
+        Returns a dict to store all the tabs content so it can be used with a template.
+
+        Required arguments:
+        - bams_dict_dict: a dict of dict of (virtual) BAMs to display the reads from. Primary keys are the classficiation keys, secondary keys are the BAM names.
+        - interval: the Interval to draw.
+
+        Optional arguments:
+        - custom_bed_dict_dict: a dict of dict of (virtual) BED entries to use instead of the internally reference BED for the shared annotations for each tab and each BAM. For subkeys that are the same as the bams_dict_dict subkeys, the specific BED entries will be used for the matching BAM subtab.
+        - tab_title_fn: Method to use to generate unique tab names when provided a classification. (Default: lambda x: x ; returns itself)
+        - expended: Boolean to control if the subtabs should be expended by default within the tab. (Default: False)
+        - anything that can be passed to make_genomeview_row()
+        """
 
         if tab_title_fn is None:  # workaround because can't set a self.method as default parameter
             tab_title_fn = lambda x: x
@@ -1274,12 +1155,27 @@ class Configuration:
 
 
     def plot_by_features_as_tab(self,
-                                bam_dict,
+                                bams_dict,
                                 features_list,
                                 page_title = "Plot by feature", # and split by barcode whitelist category if provided
                                 cellbarcode_whitelist = None,
-                                cellbarcode_from = StandardCellBarcode,  # can provide a (partial) callable or "tag:__" to use a BAM tag
+                                cellbarcode_from = genomeview.StandardCellBarcode(),
                                 **kwargs):
+        """
+        Returns an HTML object to output or display, with views separated over tabs by the list of features provided. Within tabs, split in subtabs over BAMs.
+        This is mostly intended to use with non overlapping features since there is no separation by isoforms within a gene for example.
+        Supports providing a cell barcodes whitelist as a list or dict of lists to only keep the indexed barcodes, and split barcodes according to dict keys into different groupings.
+
+        Required arguments:
+        - bams_dict: a dict of (virtual) BAMs to display the reads from.
+        - features_list: a list of features to generate views for, one per tab.
+
+        Optional arguments:
+        - page_title: HTML page title
+        - cellbarcode_whitelist: a dict of lists or list with whitelisted cell barcodes. If a dict, reads will be split according to which key they are listed under. If a list, they will be considered under an "all" key. (Default: None)
+        - cellbarcode_from: An instance of an implemented CellBarcode class with the get_barcode(self, read) method where read is a pysam.AlignmentSegment object and returns the cell barcode of the given read. (Default: StandardCellBarcode())
+        - anything that can be passed to make_genomeview_row()
+        """
 
         virtual_bams_dict = {}
         if cellbarcode_from is not None and cellbarcode_whitelist is not None:
@@ -1289,19 +1185,19 @@ class Configuration:
                 interval = self.get_interval_from_feature(feature)
                 virtual_bams_dict[feature] = {}
 
-                for bam_name, bam_file in bam_dict.items():
+                for bam_name, bam_file in bams_dict.items():
 
                     #for bam_name, bam_file in bams_dict.items():
-                    virtual_bams_dict[feature].update(split_bam_by_cellbarcode_whitelist(bam_name,
-                                                                                         bam_file,
-                                                                                         interval,
-                                                                                         cellbarcode_whitelist = cellbarcode_whitelist,
-                                                                                         cellbarcode_from = cellbarcode_from))
+                    virtual_bams_dict[feature].update(genomeview.split_bam_by_cellbarcode_whitelist(bam_name,
+                                                                                                    bam_file,
+                                                                                                    interval,
+                                                                                                    cellbarcode_whitelist = cellbarcode_whitelist,
+                                                                                                    cellbarcode_from = cellbarcode_from))
         else:
             for feature in features_list:
                 virtual_bams_dict[feature] = {}
 
-                for bam_name, bam_file in bam_dict.items():
+                for bam_name, bam_file in bams_dict.items():
                     virtual_bams_dict[feature][bam_name] = bam_file
 
 
@@ -1312,6 +1208,16 @@ class Configuration:
 
     # classified_dict has the classification as keys
     def match_classification_to_bed_entries(self, classifications, interval, annotation_matching):
+        """
+        Returns a virtual BED dict where keys are the classifications and entries are a list of all annotations that have been found to match according to the annotation_matching.match check.
+        Classifications "ambiguous" and "unclassifed" are special classifications that are not checked.
+
+        Required arguments:
+        - classifications: a list of the classifications to find the annotations for, "ambiguous" and "unclassified" are not checked against and will not exist as keys in the returned dict.
+        - interval: Interval to fetch the internal BED entries within to then try to match.
+        - annotation_matching: An instance of an implemented AnnotationMatching class with the match(self, query_annotation, target_annotation) method where the query_annotation will be an entry of classifications and target_annotation is the name of a BED entry.
+        """
+
         # parse known annotations
         all_known_annotations = self.get_bed_entries(interval)
 
@@ -1338,6 +1244,20 @@ class Configuration:
                                           classification_from,
                                           annotation_matching,
                                           **kwargs):
+        """
+        Returns a tuple with a dict of virtual BAMs and a dict of virtual BEDs with matching keys, where provided input (virtual) BAMs are split according to classification.
+
+        Required arguments:
+        - bams_dict: a dict of (virtual) BAMs to display the reads from.
+        - gene: the gene id or name to use the coordinates of for the window to fetch reads over.
+        - classification_from: An instance of an implemented Classification class with the get_classification(self, read, gene_id) method where read is a pysam.AlignmentSegment object, gene_id the id of the provided gene, and which returns the classification of the given read.
+        - annotation_matching: An instance of an implemented AnnotationMatching class with the match(self, query_annotation, target_annotation) method where the query_annotation will be an entry of classifications and target_annotation is the name of a BED entry.
+        - anything that can be passed to make_genomeview_row()
+
+        Optional arguments:
+        - cellbarcode_whitelist: a dict of lists or list with whitelisted cell barcodes. Here the whitelist is not used to split according to keys in the dict, it is purely a whitelist. If this is provided, a cellbarcode_from needs to also be provided. (Default: None)
+        - cellbarcode_from: An instance of an implemented CellBarcode class with the get_barcode(self, read) method where read is a pysam.AlignmentSegment object and returns the cell barcode of the given read. (Default: None)
+        """
         
         (feature_id, feature_type) = self.get_feature_info(gene)
         if feature_type != "gene":
@@ -1348,12 +1268,12 @@ class Configuration:
 
         virtual_bams_dict = {}
         for bam_name, bam_file in bams_dict.items():
-            virtual_bams_dict.update(split_bam_by_classification(bam_file = bam_file,
-                                                                 name_prefix = bam_name,
-                                                                 gene_id = feature_id,
-                                                                 interval = interval,
-                                                                 classification_from = classification_from,
-                                                                 **kwargs))
+            virtual_bams_dict.update(genomeview.split_bam_by_classification(bam_file = bam_file,
+                                                                            name_prefix = bam_name,
+                                                                            gene_id = feature_id,
+                                                                            interval = interval,
+                                                                            classification_from = classification_from,
+                                                                            **kwargs))
 
         # parse known annotations
         virtual_bed_dict = self.match_classification_to_bed_entries(virtual_bams_dict.keys(), interval, annotation_matching)
@@ -1369,6 +1289,21 @@ class Configuration:
                                              annotation_matching,
                                              page_title = "Split by Classification, Plot by feature",
                                              **kwargs):
+        """
+        Returns an HTML object to output or display, with views separated over tabs by the list of features provided. Within tabs, split in subtabs by classifications and BAMs.
+        This is mostly intended to use with non overlapping features since there is no separation by isoforms within a gene for example.
+        Supports providing a cell barcodes whitelist as a list or dict of lists to only keep the indexed barcodes, and split barcodes according to dict keys into different groupings.
+
+        Required arguments:
+        - bams_dict: a dict of (virtual) BAMs to display the reads from.
+        - features_list: a list of features to generate views for, one per tab.
+        - classification_from: An instance of an implemented Classification class with the get_classification(self, read, gene_id) method where read is a pysam.AlignmentSegment object, gene_id the id of the provided gene, and which returns the classification of the given read.
+        - annotation_matching: An instance of an implemented AnnotationMatching class with the match(self, query_annotation, target_annotation) method where the query_annotation will be an entry of classifications and target_annotation is the name of a BED entry.
+
+        Optional arguments:
+        - page_title: HTML page title
+        - anything that can be passed to make_genomeview_row()
+        """
 
         virtual_bams_dict_dict = {}
         virtual_beds_dict_dict = {}
@@ -1396,6 +1331,21 @@ class Configuration:
                                        annotation_matching,
                                        page_title = "Split by Classification",
                                        **kwargs):
+        """
+        Returns an HTML object to output or display, with views separated over tabs by the list of features provided. Within tabs, split in subtabs by BAMs.
+        This is mostly intended to use with non overlapping features since there is no separation by isoforms within a gene for example.
+        Supports providing a cell barcodes whitelist as a list or dict of lists to only keep the indexed barcodes, and split barcodes according to dict keys into different groupings.
+
+        Required arguments:
+        - bams_dict: a dict of (virtual) BAMs to display the reads from.
+        - gene: the gene id or name to use the coordinates of for the window to fetch reads over.
+        - classification_from: An instance of an implemented Classification class with the get_classification(self, read, gene_id) method where read is a pysam.AlignmentSegment object, gene_id the id of the provided gene, and which returns the classification of the given read.
+        - annotation_matching: An instance of an implemented AnnotationMatching class with the match(self, query_annotation, target_annotation) method where the query_annotation will be an entry of classifications and target_annotation is the name of a BED entry.
+
+        Optional arguments:
+        - page_title: HTML page title
+        - anything that can be passed to make_genomeview_row()
+        """
 
         (feature_id, feature_type) = self.get_feature_info(gene)
         if feature_type != "gene":
@@ -1406,12 +1356,12 @@ class Configuration:
 
         virtual_bams_dict_dict = {}
         for bam_name, bam_file in bams_dict.items():
-            for classification, virtual_bam in (split_bam_by_classification(bam_file = bam_file,
-                                                                            name_prefix = "",
-                                                                            gene_id = feature_id,
-                                                                            interval = interval,
-                                                                            classification_from = classification_from,
-                                                                            **kwargs)).items():
+            for classification, virtual_bam in (genomeview.split_bam_by_classification(bam_file = bam_file,
+                                                                                       name_prefix = "",
+                                                                                       gene_id = feature_id,
+                                                                                       interval = interval,
+                                                                                       classification_from = classification_from,
+                                                                                       **kwargs)).items():
                 if classification not in virtual_bams_dict_dict:
                     virtual_bams_dict_dict[classification] = {}
                 virtual_bams_dict_dict[classification][bam_name] = virtual_bam      
@@ -1433,6 +1383,22 @@ class Configuration:
                                                     **kwargs)
 
         return genomeview.templates.render_tab_titles(tabs, page_title)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
