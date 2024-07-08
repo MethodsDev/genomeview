@@ -151,7 +151,7 @@ def split_bam_by_classification(bam_file,
             ## maybe still keep key name of barcode to use in name
             whitelist = ""
             if cellbarcode_whitelist is not None:
-                cell_barcode = cellbarcode_getter.get_barcode(read)
+                cell_barcode = cellbarcode_from.get_barcode(read)
                 if not cell_barcode:
                     continue
                 whitelist = is_in_whitelist(cell_barcode, cellbarcode_whitelist)
