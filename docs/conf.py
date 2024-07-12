@@ -41,11 +41,16 @@ extensions = [
 ]
 # Add mappings
 intersphinx_mapping = {
-    'pysam': ('http://pysam.readthedocs.io/en/latest/', None)
+    'pysam': ('http://pysam.readthedocs.io/en/latest/', None),
+    'python': ('https://docs.python.org/%d.%d' % sys.version_info[:2], None),
+    'ipywidgets': ('https://ipywidgets.readthedocs.io/en/stable/', None)
 }
 
+# from sphinx.ext.intersphinx import inspect_main
+# inspect_main(['https://ipywidgets.readthedocs.io/en/latest/objects.inv'])
+
 napoleon_google_docstring = True
-napoleon_use_param = False
+# napoleon_use_param = False
 napoleon_use_ivar = False
 
 # Add any paths that contain templates here, relative to this directory.
@@ -75,7 +80,7 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
             return MagicMock()
 
-MOCK_MODULES = ['numpy', 'pysam']
+MOCK_MODULES = ['numpy', 'pysam', 'pandas']
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
@@ -95,7 +100,7 @@ release = ''
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.

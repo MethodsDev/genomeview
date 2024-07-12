@@ -5,6 +5,7 @@ GenomeView Overview
    :maxdepth: 1
    :caption: Contents:
 
+   convenience_configuration
    details
    convenience
    axis
