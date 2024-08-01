@@ -14,17 +14,15 @@ class CellBarcode(ABC):
 
     @abstractmethod
     def get_barcode(self, read):
-    # def get_barcode(self, read):
         pass
 
 
 class HaasStyleCellBarcode(CellBarcode):
     """
-    Implementation of CellBarcode class that assumes the read name is formated with the cell barcode at the start and uses "^" as a separator after".
+    Implementation of CellBarcode class that assumes the read name is formated with the cell barcode at the start and uses "^" as a separator after.
     """
 
     def get_barcode(self, read):
-    # def get_barcode(self, read):
         return Seq(read.query_name.split("^")[0]).reverse_complement()
 
 
@@ -34,7 +32,6 @@ class ONTCellBarcode(CellBarcode):
     """
 
     def get_barcode(self, read):
-    # def get_barcode(self, read):
         return get_read_tag(read, "BC")
 
 
@@ -45,6 +42,5 @@ class StandardCellBarcode(CellBarcode):
     """
 
     def get_barcode(self, read):
-    # def get_barcode(self, read):
         return get_read_tag(read, "CB")
 

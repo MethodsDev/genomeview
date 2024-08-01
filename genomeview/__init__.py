@@ -19,5 +19,7 @@ from genomeview.bam_read_operations import *
 from genomeview.cellbarcode import HaasStyleCellBarcode, ONTCellBarcode, StandardCellBarcode
 from genomeview.classification import IsoQuantClassification, BAMtagClassification
 
+from genomeview.templates import *
+
 from genomeview.convenience import visualize_data, Configuration
 from genomeview.utilities import get_one_track

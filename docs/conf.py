@@ -49,6 +49,14 @@ intersphinx_mapping = {
 # from sphinx.ext.intersphinx import inspect_main
 # inspect_main(['https://ipywidgets.readthedocs.io/en/latest/objects.inv'])
 
+autodoc_default_options = {
+   'members': True,
+    # Does now show base classes otherwise... why such bad defaults?
+    # But with this it does show useless bases like `object`. What is one to do?
+    'show-inheritance': True,
+}
+
+
 napoleon_google_docstring = True
 # napoleon_use_param = False
 napoleon_use_ivar = False

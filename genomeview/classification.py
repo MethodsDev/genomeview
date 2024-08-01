@@ -25,17 +25,17 @@ class IsoQuantClassification(Classification):
     Works by internally indexing the file provided. (may be able to use a read name bgzip index for random access)
     """
 
-    ISOQUANT_READ_ASSIGNMENTS_DEFS = {
-        "read_id":0,
-        "chr":1, 
-        "strand": 2,
-        "isoform_id": 3,
-        "gene_id":4, 
-        "assignment_type":5,
-        "assignment_events":6,
-        "exons":7,
-        "additional_info":8
-    }
+#    ISOQUANT_READ_ASSIGNMENTS_DEFS = {
+#        "read_id":0,
+#        "chr":1, 
+#        "strand": 2,
+#        "isoform_id": 3,
+#        "gene_id":4, 
+#        "assignment_type":5,
+#        "assignment_events":6,
+#        "exons":7,
+#        "additional_info":8
+#    }
 
     def __init__(self, file_path, ambiguous_classification = True):
         self.read_to_gene_id_to_isoform_id = {}
@@ -60,12 +60,12 @@ class IsoQuantClassification(Classification):
 
                 fields = line.rstrip().split("\t")
                 
-                values =  dict.fromkeys(self.ISOQUANT_READ_ASSIGNMENTS_DEFS)
-                for field_name, field in self.ISOQUANT_READ_ASSIGNMENTS_DEFS.items():
-                    cur_value = None
-                    if len(fields) > field:
-                        cur_value = fields[field]
-                    values[field_name] = cur_value
+                # values =  dict.fromkeys(self.ISOQUANT_READ_ASSIGNMENTS_DEFS)
+                # for field_name, field in self.ISOQUANT_READ_ASSIGNMENTS_DEFS.items():
+                #     cur_value = None
+                #     if len(fields) > field:
+                #         cur_value = fields[field]
+                #     values[field_name] = cur_value
 
                 # self.read_to_assignment_type[values['read_id']] = values['assignment_type']
                 self.read_to_assignment_type[fields[0]] = fields[5]

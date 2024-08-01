@@ -157,6 +157,7 @@ def split_bam_by_classification(bam_file,
                 whitelist = is_in_whitelist(cell_barcode, cellbarcode_whitelist)
                 if whitelist is None:
                     continue
+                whitelist += "_"
 
             classifications = classification_from.get_classification(read, gene_id)
             if classifications is None:
