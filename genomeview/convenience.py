@@ -1109,6 +1109,7 @@ class Configuration:
         bed_config = self.shallow_copy()
         new_beds = {}
         new_bed_labels = {}
+        secondary_new_bed_labels = {}
         if with_bed_label:
             if type(self.bed_annotation) is dict:
                 for bed_name, bed_path in self.bed_annotation.items():
@@ -1127,6 +1128,7 @@ class Configuration:
                             is_not_first += 1
                             new_beds[new_key] = genomeview.VirtualBEDTrack(transcripts=[bed_entry], name=None)
                             new_bed_labels[new_key] = label
+                            secondary_new_bed_labels[new_key] = "" if label else None
                             seen_bed_entries.add(bed_entry.name)
                 bed_config.update_bed(new_beds)
 
@@ -1172,6 +1174,7 @@ class Configuration:
 
             if add_track_label:
                 add_track_label = "\n"
+            new_bed_labels = secondary_new_bed_labels
             add_reads_label = None
             add_coverage_label = None
 
