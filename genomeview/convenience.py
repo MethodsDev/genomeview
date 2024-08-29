@@ -1076,6 +1076,7 @@ class Configuration:
             padding = math.ceil(smallest_interval_size * padding_perc)
             total_interval_size = total_interval_size + (padding * len(intervals_list))
             per_base_size = (doc.width - reserved_width)/total_interval_size
+            padding_perc = 0
 
         max_coverage_dict = {}
         virtual_bams_dict = {}
@@ -1146,17 +1147,19 @@ class Configuration:
             strand = interval.strand
             
             if normalize_interval_width:
-                padding = math.ceil((end - start) * padding_perc)
+                # padding = math.ceil((end - start) * padding_perc)
                 interval_width = (doc.width - reserved_width)/len(intervals_list)
             else:
                 interval_width = math.floor((interval.end - interval.begin + padding) * per_base_size)
+                start = start - padding
+                end = end + padding
 
             row = bed_config.make_genomeview_row(start = start, 
                                                  end = end,
                                                  chrom = chrom,
                                                  strand = strand,
                                                  bams_dict = bams_dict, 
-                                                 padding_perc = 0, 
+                                                 padding_perc = padding_perc, 
                                                  add_track_label = add_track_label,
                                                  add_reads_label = add_reads_label,
                                                  add_coverage_label = add_coverage_label,
