@@ -191,7 +191,7 @@ class GenomeView:
         self.pixel_width = None
         # self.pixel_height = None
 
-        self.margin_y = 10
+        self.margin_y = 2  # 10
     
     def add_track(self, track):
         self.tracks.append(track)

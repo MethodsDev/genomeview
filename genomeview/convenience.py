@@ -110,7 +110,7 @@ def color_from_bed(interval):
 
 def make_bed_track(bed, name=None): # , chrom=None, start=None, end=None):
     if isinstance(bed, genomeview.VirtualBEDTrack):
-        bed_track = bed
+        bed_track = bed.copy()
     else:
         bed_track = genomeview.BEDTrack(bed, name)
     return bed_track
@@ -310,6 +310,8 @@ class Configuration:
             The view to add BED tracks to.
         vertical_layout : bool, optional
             Control if a single entry should be drawn per row within the tracks. (Default: True)
+        use_names : bool or dict, optional
+            Control if BED names are displayed or not (requires self.bed_annotations to be a dict). If a dict is provided, it should have the same keys as self.bed_annotation
         """
 
         if self.bed_annotation:
@@ -322,7 +324,11 @@ class Configuration:
             elif type(self.bed_annotation) is dict:
                 for bed_name, bed_path in self.bed_annotation.items():
                     if use_names:
-                        view.add_track(genomeview.track.TrackLabel(bed_name))
+                        if type(use_names) is dict:
+                            if use_names[bed_name] is not None:
+                                view.add_track(genomeview.track.TrackLabel(use_names[bed_name]))
+                        else:
+                            view.add_track(genomeview.track.TrackLabel(bed_name))
                     else:
                         view.add_track(genomeview.track.TrackLabel(""))
                     virtual_bed = make_bed_track(bed_path, name="")
@@ -899,10 +905,10 @@ class Configuration:
         """
 
         (feature_id, feature_type) = self.get_feature_info(feature)
-        
+        exons_list = None
+
         if feature_type == "exon":
             return self.plot_feature(feature_id, **kwargs)
-
         elif feature_type == "transcript":
             exons_list = sorted(self.transcript_to_exons[feature_id])
         elif feature_type == "gene":
@@ -912,12 +918,17 @@ class Configuration:
                 exons_list = sorted(tmp_exons)
             else:
                 exons_list = sorted(self.gene_to_exons[feature_id])
+        else:
+            print("Error, could not find exons for feature")
+            print("feature_id = ", feature_id, " ; feature_type = ", feature_type)
+            return
 
         if as_widget:
             all_views = []
             all_titles = []
             for exon in exons_list:
-                doc = self.make_intervals_row_through_virtual(genomeview.Document(view_width), [exon], **kwargs)
+                doc = genomeview.Document(view_width)
+                self.make_intervals_row_through_virtual(doc, [exon], **kwargs)
                 all_views.append(widgets.HTML(doc._repr_svg_()))
                 all_titles.append("Exon:: " + exon.data + " : " + str(exon.begin) + " - " + str(exon.end))
 
@@ -1023,6 +1034,7 @@ class Configuration:
                                            row = None, 
                                            normalize_interval_width = False,
                                            shared_max_coverage = True,
+                                           with_bed_label = True,
                                            **kwargs):
         """
         Adds a row to the provided doc for the given intervals such that reads ordering and spacing is consistant across them.
@@ -1039,6 +1051,8 @@ class Configuration:
             Control if all intervals should have the same view width rather than being proportional to the sequence length. (Default: False)
         shared_max_coverage : bool, optional
             Control if the y-axis of the coverage tracks should be consistant across a row. Alternatively can provide an arbitrary value to use as the max for the y-axis. (Default: True)
+        with_bed_label : bool, optional
+            Control if a label is displayed for each BED source. (Default: False)
         **kwargs: 
             anything that can be passed to :meth:`make_genomeview_row()`
         """
@@ -1090,7 +1104,36 @@ class Configuration:
                 
                 max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
 
-        if shared_max_coverage:
+
+        bed_config = self.shallow_copy()
+        new_beds = {}
+        new_bed_labels = {}
+        if with_bed_label:
+            if type(self.bed_annotation) is dict:
+                for bed_name, bed_path in self.bed_annotation.items():
+                    is_not_first = 0
+                    seen_bed_entries = set()
+                    for interval in intervals_list:
+                        for bed_entry in genomeview.bedtrack.bed_fetch(bed_path, interval.chrom, interval.begin, interval.end):
+                            if bed_entry.name in seen_bed_entries:
+                                continue
+                            label = None
+                            if is_not_first:
+                                new_key = "__tmp_" + str(is_not_first) + bed_name
+                            else:
+                                new_key = bed_name
+                                label = bed_name
+                            is_not_first += 1
+                            new_beds[new_key] = genomeview.VirtualBEDTrack(transcripts=[bed_entry], name=None)
+                            new_bed_labels[new_key] = label
+                            seen_bed_entries.add(bed_entry.name)
+                bed_config.update_bed(new_beds)
+
+        else:
+            new_bed_labels = False
+
+
+        if bams_dict and shared_max_coverage:
             if type(shared_max_coverage) is bool:  # is True and actually a Boolean rather than an Integer
                 max_coverage_dict = max(max_coverage_dict.values())
             else:
@@ -1108,20 +1151,21 @@ class Configuration:
             else:
                 interval_width = math.floor((interval.end - interval.begin + padding) * per_base_size)
 
-            row = self.make_genomeview_row(start = start, 
-                                           end = end,
-                                           chrom = chrom,
-                                           strand = strand,
-                                           bams_dict = bams_dict, 
-                                           padding_perc = 0, 
-                                           add_track_label = add_track_label,
-                                           add_reads_label = add_reads_label,
-                                           add_coverage_label = add_coverage_label,
-                                           row = row, 
-                                           view_width = interval_width, 
-                                           view_margin_y = 0,
-                                           coverage_track_max_y = max_coverage_dict,
-                                           **kwargs)
+            row = bed_config.make_genomeview_row(start = start, 
+                                                 end = end,
+                                                 chrom = chrom,
+                                                 strand = strand,
+                                                 bams_dict = bams_dict, 
+                                                 padding_perc = 0, 
+                                                 add_track_label = add_track_label,
+                                                 add_reads_label = add_reads_label,
+                                                 add_coverage_label = add_coverage_label,
+                                                 with_bed_label = new_bed_labels,
+                                                 row = row, 
+                                                 view_width = interval_width, 
+                                                 view_margin_y = 0,
+                                                 coverage_track_max_y = max_coverage_dict,
+                                                 **kwargs)
 
             if add_track_label:
                 add_track_label = "\n"
@@ -1129,7 +1173,7 @@ class Configuration:
             add_coverage_label = None
 
         doc.elements.append(row)
-        # return doc
+        return doc
 
 
     def get_gene_tab_title(self, feature):

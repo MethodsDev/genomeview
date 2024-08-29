@@ -315,3 +315,6 @@ class VirtualBEDTrack(BEDTrack):
         yield from self.transcripts
         return
 
+    def copy(self):
+        return VirtualBEDTrack(transcripts=self.transcripts, name=self.name)
+
