@@ -65,7 +65,7 @@ class Document:
 
     def _repr_html_(self):
         #return widgets.HTML(self._repr_svg_())
-        svg_content = self._repr_svg_()
+        svg_content = self.__repr_svg_()
         custom_style = """
         <style>
             .custom-svg-container svg {
@@ -82,7 +82,7 @@ class Document:
         """
         return html_content
     
-    def _repr_svg_(self):
+    def __repr_svg_(self):
         return "\n".join(self.render())
 
     def get_images(self, output_format="svg"):
