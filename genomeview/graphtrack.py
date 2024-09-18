@@ -98,6 +98,8 @@ class GraphTrack(Track):
                     if numpy.isnan(series.x[i]) or numpy.isnan(series.y[i]):
                         continue
                     x1 = self.scale.topixels(series.x[i])+ renderer.x
+                    full_path += " L " + str(x1) + " " + str(y1)
+
                     y1 = self.ytopixels(series.y[i]) + renderer.y
                     current_min_y = min(current_min_y, y1)
                     full_path += " L " + str(x1) + " " + str(y1)
