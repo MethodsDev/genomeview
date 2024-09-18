@@ -1131,7 +1131,21 @@ class Configuration:
                             secondary_new_bed_labels[new_key] = "" if label else None
                             seen_bed_entries.add(bed_entry.name)
                 bed_config.update_bed(new_beds)
-
+            elif type(self.bed_annotation) is list:
+                new_bed_labels = False
+                secondary_new_bed_labels = False
+                i = 0
+                for bed_path in self.bed_annotation:
+                    seen_bed_entries = set()
+                    for interval in intervals_list:
+                        for bed_entry in genomeview.bedtrack.bed_fetch(bed_path, interval.chrom, interval.begin, interval.end):
+                            if bed_entry.name in seen_bed_entries:
+                                continue
+                            new_key = "__tmp_" + str(i)
+                            new_beds[new_key] = genomeview.VirtualBEDTrack(transcripts=[bed_entry], name=None)
+                            seen_bed_entries.add(bed_entry.name)
+                            i += 1
+                bed_config.update_bed(new_beds)
         else:
             new_bed_labels = False
 
