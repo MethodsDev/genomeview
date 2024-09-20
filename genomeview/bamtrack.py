@@ -726,10 +726,14 @@ class BAMCoverageTrack(GraphTrack):
             self.bam_references = bam.references
         self.include_secondary = False
         self.bin_size = 0
-        self.priming_orientation = "5p"
+        self.priming_orientation = "3p"
+        self.cached_series = False
         
     def layout(self, scale):
         super().layout(scale)
+
+        if len(self.series) > 0 and self.cached_series:
+            return
 
         chrom = match_chrom_format(scale.chrom, self.bam_references)
 
@@ -763,10 +767,7 @@ class BAMCoverageTrack(GraphTrack):
             start_counts_bins = [collections.Counter() for _ in range(num_bins)]
             end_counts_bins = [collections.Counter() for _ in range(num_bins)]
 
-            print("scale.strand = ", scale.strand)
-            print("self.priming_orientation = ", self.priming_orientation)
             if (scale.strand == "+" and self.priming_orientation == "5p") or (scale.strand == "-" and self.priming_orientation == "3p"):
-                print("using start positions for binning")
                 # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
                 with self.opener_fn(self.bam_path) as bam:
                     for read in bam.fetch(chrom, scale.start, scale.end):
@@ -797,7 +798,6 @@ class BAMCoverageTrack(GraphTrack):
 
             else: # "+" strand and "3p" or "-" strand and "5p"
                 # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
-                print("using end positions for binning")
                 with self.opener_fn(self.bam_path) as bam:
                     for read in bam.fetch(chrom, scale.start, scale.end):
                         if read.is_secondary and not self.include_secondary:
@@ -891,7 +891,6 @@ class BAMCoverageTrack(GraphTrack):
                 layers[bin_index] = (x_combined, y_updated)
 
             # Plot each layer's x, y series from last to first
-            print("there are ", len(layers), " layers")
             for b in reversed(range(len(layers))):
                 x, y = layers[b]
                 if len(x):
