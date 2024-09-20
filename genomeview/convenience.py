@@ -158,6 +158,7 @@ class Configuration:
     """
 
     def __init__(self, genome_fasta, bed_annotation, gtf_annotation = None, bed_color_fn=color_from_bed):
+        self._fasta = genome_fasta
         self.genome_fasta = genomeview.genomesource.FastaGenomeSource(genome_fasta)
         self.bed_annotation = bed_annotation
         self.bed_color_fn = bed_color_fn
@@ -175,7 +176,7 @@ class Configuration:
 
 
     def shallow_copy(self):
-        return Configuration(self.genome_fasta, None, bed_color_fn = self.bed_color_fn)
+        return Configuration(self._fasta, None, bed_color_fn = self.bed_color_fn)
 
 
     def index_gtf(self, gtf_annotation):
@@ -352,13 +353,15 @@ class Configuration:
                             with_coverage = True,
                             with_bed = True,
                             with_bed_label = False,
+                            coverage_bin_size = 0,
+                            priming_orientation = "3p",
                             vertical_layout_reads = False,
                             include_secondary = False,
                             quick_consensus = False,
                             row = None, 
                             view_width = None,
                             view_margin_y = None,
-                            fill_coverage = False,
+                            fill_coverage = True,
                             coverage_track_max_y = None,
                             tighter_track = False,
                             **kwargs):
@@ -399,6 +402,10 @@ class Configuration:
             Control if bed annotations are drawn. (Default: True)
         with_bed_label : bool, optional
             Control if a label is displayed for each BED source. (Default: False)
+        coverage_bin_size : int, optional
+            Control the bin size for binned coverage (Default: 0, meaning no binning)
+        priming_orientation : str, optional
+            Define what side reads are supposed to be primed to based on chemistry for binned coverage direction. One of "5p" or "3p". (Default: "5p")
         vertical_layout_reads : bool, optional
             Control if reads are displayed in a vertical manner, meaning a single read per line, or not. (Default: False)
         include_secondary : bool, optional
@@ -412,7 +419,7 @@ class Configuration:
         view_margin_y : int, optional
             Size of the margin in "pixels" at the top and bottom of the view. (Default: None, which uses the global default of 5)
         fill_coverage : bool, optional
-            Boolean to control if the coverage track should be a filled solid or just an outline. (Default: False)
+            Boolean to control if the coverage track should be a filled solid or just an outline. (Default: True)
         coverage_track_max_y : int, optional
             Specify a value that should be the max on the y-axis of the coverage track (useful to compare BAMs or regions with different coverage depth by forcing a common axis). (Default: None)
         tighter_track : bool, optional
@@ -455,6 +462,8 @@ class Configuration:
                 else:
                     add_coverage_label = ""
                 coverage_track = genomeview.BAMCoverageTrack(value, name=add_coverage_label, **opener_kwargs)
+                coverage_track.bin_size = coverage_bin_size
+                coverage_track.priming_orientation = priming_orientation
 
                 if fill_coverage:
                     coverage_track.fill_coverage = True
@@ -929,7 +938,7 @@ class Configuration:
             for exon in exons_list:
                 doc = genomeview.Document(view_width)
                 self.make_intervals_row_through_virtual(doc, [exon], **kwargs)
-                all_views.append(widgets.HTML(doc._repr_svg_()))
+                all_views.append(widgets.HTML(doc._repr_svg__()))
                 all_titles.append("Exon:: " + exon.data + " : " + str(exon.begin) + " - " + str(exon.end))
 
             stack = widgets.Stack(all_views, selected_index=0)
@@ -1006,7 +1015,7 @@ class Configuration:
             for pair in exons_pairs:
                 doc = genomeview.Document(view_width)
                 self.make_intervals_row_through_virtual(doc, pair, **kwargs)
-                all_views.append(widgets.HTML(doc._repr_svg_()))
+                all_views.append(widgets.HTML(doc._repr_svg__()))
                 all_titles.append("Splice junction btw: exon:: " + pair[0].data + ":" + str(pair[0].begin) + "-" + str(pair[0].end) + " and exon::" + pair[1].data + " : " + str(pair[1].begin) + " - " + str(pair[1].end))
 
             stack = widgets.Stack(all_views, selected_index=0)
@@ -1264,7 +1273,7 @@ class Configuration:
                                                      with_coverage = False,
                                                      add_track_label = False,
                                                      **kwargs
-                                                    )._repr_svg_()
+                                                    )._repr_svg__()
         
         tab_sections = []
         for key, bam in bams_dict.items():
@@ -1283,7 +1292,7 @@ class Configuration:
                                                        with_coverage = False,
                                                        add_track_label = False,
                                                        **kwargs
-                                                      )._repr_svg_() + "</br>"
+                                                      )._repr_svg__() + "</br>"
 
             if with_coverage:
                 static_svg += self.plot_interval(bams_dict = {key: bam},
@@ -1294,7 +1303,7 @@ class Configuration:
                                                  add_track_label = False,
                                                  fill_coverage = True,
                                                  **kwargs
-                                                )._repr_svg_() + "</br>"
+                                                )._repr_svg__() + "</br>"
 
             resizable_svg += self.plot_interval(bams_dict = {key: bam},
                                                 interval = interval,
@@ -1306,7 +1315,7 @@ class Configuration:
                                                 add_reads_label = False,
                                                 vertical_layout_reads = True,
                                                 **kwargs
-                                               )._repr_svg_() + "</br>"
+                                               )._repr_svg__() + "</br>"
 
             tab_sections.append({
                 'unique_id': unique_id,
