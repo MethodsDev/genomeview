@@ -880,6 +880,128 @@ class Configuration:
         return widgets.VBox(all_widgets)
 
 
+    def plot_exons_helper(self,
+                          feature,
+                          merge_exons = True,
+                          **kwargs):
+
+        (feature_id, feature_type) = self.get_feature_info(feature)
+        exons_list = None
+
+        if feature_type == "exon":
+            return self.plot_feature(feature_id, **kwargs)
+        elif feature_type == "transcript":
+            exons_list = sorted(self.transcript_to_exons[feature_id])
+        elif feature_type == "gene":
+            if merge_exons:
+                tmp_exons = self.gene_to_exons[feature_id].copy()
+                tmp_exons.merge_overlaps(data_reducer = interval_data_reduce)
+                exons_list = sorted(tmp_exons)
+            else:
+                exons_list = sorted(self.gene_to_exons[feature_id])
+        else:
+            raise TypeError("Error, could not find exons for feature\nfeature_id = ", feature_id, " ; feature_type = ", feature_type)
+
+        return exons_list
+
+
+    def plot_exons_slices(self, 
+                          feature,
+                          merge_exons = True, 
+                          normalize_interval_width = False,
+                          padding_perc = 0.1,
+                          **kwargs):
+
+        exons_list = self.plot_exons_helper(feature, merge_exons, **kwargs)
+        if isinstance(exons_list, genomeview.Document):
+            return exons_list
+        # else res is an exons_list
+
+        total_interval_size = 0
+        left_bound = math.inf
+        right_bound = -math.inf
+
+        smallest_interval_size = math.inf
+        for interval in exons_list:
+            total_interval_size += interval.end - interval.begin
+            smallest_interval_size = min(smallest_interval_size, interval.end - interval.begin)
+            left_bound = min(left_bound, interval.begin)
+            right_bound = max(right_bound, interval.end)
+
+        padding = None
+        if not normalize_interval_width:
+            padding = math.ceil(smallest_interval_size * padding_perc)
+            padding_perc = padding / (right_bound - left_bound + 1)  # recalculate so that we minimize the full svg size
+        else:
+            pass # HANDLE, maybe later in the code
+
+        kwargs["vertical_layout"] = True  # necessary to make sure reads/BED entries cannot be on the same line and appear like they are the same because when they are not
+
+        doc = self.plot_feature(feature = feature, padding_perc = padding_perc, **kwargs)
+        doc.hide = True  # so that viewbox height and width are set to 0
+        base_svg = doc._repr_svg__()
+        doc_actual_height = doc.height
+      
+
+        per_base_size = None
+        reserved_width = (len(exons_list) - 1) * doc.elements[0].space_between + doc.margin_x * 2
+        if not normalize_interval_width:
+            total_interval_size = total_interval_size + (padding * len(exons_list))
+            per_base_size = (doc.width - reserved_width)/total_interval_size
+
+
+        padding_doc = math.ceil((doc.elements[0].views[0].scale.end - doc.elements[0].views[0].scale.start) * padding_perc)
+        per_base_size_doc = doc.width / (doc.elements[0].views[0].scale.end - doc.elements[0].views[0].scale.start + 2*padding_doc)
+
+        left_bound = doc.elements[0].views[0].scale.start - padding_doc  # padded start position the view
+        # right_bound = doc.elements[0].views[0].scale.end + padding_doc
+
+        full_svg = base_svg + '<div class="custom-svg-container" style="overflow-y: hidden; width: 100%;">\n'
+
+        for interval in exons_list:
+            start = interval.begin
+            end = interval.end
+            # chrom = interval.chrom
+            # strand = interval.strand
+            
+            if normalize_interval_width:
+                display_width = (doc.width - reserved_width)/len(exons_list)
+                padding = math.ceil((end - start) * padding_perc)
+            else:
+                display_width = math.floor((end - start + 2*padding) * per_base_size)
+
+            slice_x_start = doc.elements[0].views[0].scale.topixels(start - padding) + doc.margin_x
+            slice_x_end = doc.elements[0].views[0].scale.topixels(end + padding) + doc.margin_x
+
+            slice_width = slice_x_end - slice_x_start
+
+            interval_offset = math.floor((left_bound - start + padding) * per_base_size_doc) + doc.margin_x
+
+            full_svg += f"""
+            <svg width="{display_width}" height="{doc_actual_height}" viewBox="{slice_x_start} 0 {slice_width} {doc_actual_height}" preserveAspectRatio="none" style="display: inline-block">
+                <use href="#{doc.id}" x="0" y="0" width="{slice_x_end}" height="{doc_actual_height}"/>
+            </svg>
+        """
+
+        full_svg += f"""
+        </div>
+        <style>
+            .custom-svg-container {{
+                white-space: nowrap;
+                overflow-x: auto;
+            }}
+            .custom-svg-container svg {{
+                max-width: none;
+                height: auto;
+                display: inline-block;
+            }}
+        </style>
+        """
+
+        return full_svg
+
+
+
     def plot_exons(self, 
                    feature,
                    merge_exons = True,
