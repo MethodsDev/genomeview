@@ -9,12 +9,18 @@ from genomeview.export import SvgSplitter, _convertSVG_resvg_stdio
 
 
 class Document:
-    header = """<svg version="1.1" baseProfile="full" width="{width}" height="{height}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">"""
-    footer = """</svg>"""
+    doc_counter = 0
+    svg_header = """<svg version="1.1" id="{doc_counter}" width="{width}" height="{height}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">"""
+    svg_footer = """</svg>"""
         
     def __init__(self, width):
+        self.id = "genomeview_svg_" + str(self.doc_counter)
+        self.doc_counter += 1
+
         self.elements = []
         self.width = width
+        self.height = None
+        self.hide = False
         self.renderer = SVG()
         
         self.margin_x = 5
@@ -51,9 +57,13 @@ class Document:
         
     def render(self):
         self.layout()
+
+        self.height = sum(element.height+self.between_views for element in self.elements) + self.margin_y*2
         
-        total_height = sum(element.height+self.between_views for element in self.elements) + self.margin_y*2
-        yield self.header.format(height=total_height, width=self.width)
+        if self.hide:
+            yield self.svg_header.format(doc_counter=self.id, height=0, width=0)
+        else:
+            yield self.svg_header.format(doc_counter=self.id, height=self.height, width=self.width)
         
         cury = self.margin_y
         for element in self.elements:
@@ -61,11 +71,11 @@ class Document:
             yield from renderer.render(element)
             cury += element.height + self.between_views
             
-        yield self.footer
+        yield self.svg_footer
 
     def _repr_html_(self):
         #return widgets.HTML(self._repr_svg_())
-        svg_content = self.__repr_svg_()
+        svg_content = self._repr_svg__()
         custom_style = """
         <style>
             .custom-svg-container svg {
@@ -74,19 +84,30 @@ class Document:
             }
         </style>
         """
-        html_content = f"""
+        if self.hide:
+            html_content = f"""
+            {svg_content}
         <div class="custom-svg-container" style="overflow-x: auto; overflow-y: hidden; width: 100%;">
-            {custom_style}
+            
+        </div>
+        """
+
+        else:
+            html_content = f"""
+        <div class="custom-svg-container" style="overflow-x: auto; overflow-y: hidden; width: 100%;">
             {svg_content}
         </div>
         """
+
+        html_content += custom_style
+
         return html_content
     
-    def __repr_svg_(self):
+    def _repr_svg__(self):
         return "\n".join(self.render())
 
     def get_images(self, output_format="svg"):
-        svg = self._repr_svg_()
+        svg = self._repr_svg__()
         if output_format == "svg":
             return [svg]
         else:  # "png"
@@ -104,7 +125,7 @@ class Document:
         if output_format == "png":
             return widgets.VBox([widgets.Image(value=data, format=output_format) for data in self.get_images(output_format)])
         else: # "svg"
-            return widgets.HTML(self._repr_svg_())
+            return widgets.HTML(self._repr_svg__())
 
     def render_html(self, output_path, output_format="svg", title=""):
         view = self.get_widget(output_format=output_format)
