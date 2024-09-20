@@ -331,8 +331,8 @@ class Configuration:
                                 view.add_track(genomeview.track.TrackLabel(use_names[bed_name]))
                         else:
                             view.add_track(genomeview.track.TrackLabel(bed_name))
-                    else:
-                        view.add_track(genomeview.track.TrackLabel(""))
+                    # else:
+                    #     view.add_track(genomeview.track.TrackLabel(""))
                     virtual_bed = make_bed_track(bed_path, name="")
                     virtual_bed.color_fn = self.bed_color_fn
                     virtual_bed.vertical_layout = vertical_layout
