@@ -355,6 +355,7 @@ class Configuration:
                             with_bed = True,
                             with_bed_label = False,
                             coverage_bin_size = 0,
+                            coverage_height = 100,
                             priming_orientation = "3p",
                             vertical_layout_reads = False,
                             include_secondary = False,
@@ -465,6 +466,7 @@ class Configuration:
                 coverage_track = genomeview.BAMCoverageTrack(value, name=add_coverage_label, **opener_kwargs)
                 coverage_track.bin_size = coverage_bin_size
                 coverage_track.priming_orientation = priming_orientation
+                coverage_track.height = coverage_height
 
                 if fill_coverage:
                     coverage_track.fill_coverage = True
