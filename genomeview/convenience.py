@@ -12,6 +12,7 @@ from intervaltree import Interval, IntervalTree
 
 import genomeview
 from genomeview import utilities
+from genomeview.bam_read_operations import *
 from genomeview.utilities import my_hook_compressed
 
 
