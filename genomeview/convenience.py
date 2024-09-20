@@ -1204,6 +1204,7 @@ class Configuration:
             right_bound = max(right_bound, interval.end)
 
         reserved_width = (len(intervals_list) - 1) * row.space_between + doc.margin_x * 2
+        padding = math.ceil(smallest_interval_size * padding_perc)
         if not normalize_interval_width:
             padding = math.ceil(smallest_interval_size * padding_perc)
             total_interval_size = total_interval_size + (padding * len(intervals_list))
