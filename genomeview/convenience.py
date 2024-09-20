@@ -1207,14 +1207,16 @@ class Configuration:
 
         reserved_width = (len(intervals_list) - 1) * row.space_between + doc.margin_x * 2
         padding = math.ceil(smallest_interval_size * padding_perc)
+        left_bound -= padding
+        right_bound += padding
         if not normalize_interval_width:
-            padding = math.ceil(smallest_interval_size * padding_perc)
             total_interval_size = total_interval_size + (padding * len(intervals_list))
             per_base_size = (doc.width - reserved_width)/total_interval_size
             padding_perc = 0
 
         max_coverage_dict = {}
         virtual_bams_dict = {}
+        bam_path_to_series = {}
         for key, value in bams_dict.items():
 
             virtual_bams_dict[key] = []
@@ -1238,7 +1240,18 @@ class Configuration:
                     bam_track.quick_consensus = False
                     virtual_bams_dict[key].append(bam_track)
                 
-                max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
+                # max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
+
+            tmp_view = genomeview.GenomeView(intervals_list[0].chrom, left_bound, right_bound, intervals_list[0].strand)
+            coverage_track_series = genomeview.BAMCoverageTrack(value, opener_fn)
+            if "priming_orientation" in kwargs:
+                coverage_track_series.priming_orientation = kwargs["priming_orientation"]
+            if "coverage_bin_size" in kwargs:
+                coverage_track_series.bin_size = kwargs["coverage_bin_size"]
+            coverage_track_series.layout(tmp_view.scale)
+            bam_path_to_series[value] = coverage_track_series.series
+            max_coverage_dict[key] = coverage_track_series.max_y
+            # coverage_track_series.min_y
 
 
         bed_config = self.shallow_copy()
@@ -1320,6 +1333,11 @@ class Configuration:
                                                  view_margin_y = 0,
                                                  coverage_track_max_y = max_coverage_dict,
                                                  **kwargs)
+
+            for track in row.views[-1].get_tracks():
+                if isinstance(track, genomeview.bamtrack.BAMCoverageTrack):
+                    track.series = bam_path_to_series[track.bam_path]
+                    track.cached_series = True
 
             if add_track_label:
                 add_track_label = "\n"
