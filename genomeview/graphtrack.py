@@ -5,6 +5,22 @@ from genomeview.track import Track
 from genomeview.utilities import match_chrom_format
 
 COLORS = ["blue", "red", "green", "black"]
+BINNED_COLORS = ["#1F618D", "#b2182b", "#f4a582", "#9B59B6", "#85929E", 
+                 "#1c9099", "#74add1", "#053061", "#1b7837", "#b8e186",
+                 "#bebada", "#fed976", "#e7298a", "#47E3FF", "#F6222E",
+                 "#771155", "orange",  "#6347FF", "#A93226", "#270e26",
+                 "#b8bc53", "#5628ce", "#fa909c", "#8ff331", "#FF6347",
+                 "#6347FF", "#556270", "#4ECDC4", "#C7F464", "#FF6B6B",
+                 "#C44D58", "#E3FF47", "#FF4787", "#771155", "#AA4488", 
+                 "#CC99BB", "#114477", "#4477AA", "#77AADD", "#117777",
+                 "#44AAAA", "#77CCCC", "#777711", "#AAAA44", "#DDDD77",
+                 "#774411", "#AA7744", "#DDAA77", "#771122", "#AA4455",
+                 "#DD7788", "#FFC312", "#C4E538", "#12CBC4", "#FDA7DF",
+                 "#ED4C67", "#F79F1F", "#A3CB38", "#1289A7", "#D980FA",
+                 "#B53471", "#EE5A24", "#009432", "#0652DD", "#9980FA",
+                 "#833471", "#EA2027", "#006266", "#1B1464", "#5758BB",
+                 "#6F1E51"]
+
 
 class Series:
     def __init__(self, x, y, color=None, label=None):

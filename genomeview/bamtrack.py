@@ -14,7 +14,7 @@ from genomeview.track import Track
 from genomeview.intervaltrack import Interval, IntervalTrack
 from genomeview import MismatchCounts
 from genomeview.utilities import match_chrom_format
-from genomeview.graphtrack import GraphTrack
+from genomeview.graphtrack import GraphTrack, BINNED_COLORS
 
 
 def allreads(read):
@@ -725,30 +725,190 @@ class BAMCoverageTrack(GraphTrack):
         with self.opener_fn(bam_path) as bam:
             self.bam_references = bam.references
         self.include_secondary = False
+        self.bin_size = 0
+        self.priming_orientation = "5p"
         
     def layout(self, scale):
         super().layout(scale)
 
         chrom = match_chrom_format(scale.chrom, self.bam_references)
-        counts = collections.defaultdict(int)
-        
-        with self.opener_fn(self.bam_path) as bam:
-            for read in bam.fetch(chrom, scale.start, scale.end):
-                if read.is_secondary and not self.include_secondary: continue
-                for i in read.get_reference_positions():
-                    counts[i] += 1
-        
-        x = np.arange(scale.start, scale.end+1)
-        y = np.empty(scale.end - scale.start + 1, dtype=int)
-        for i, curx in enumerate(x):
-            y[i] = counts[curx]
-        
-        s = pd.Series(y, index=x).sort_index()
-        s = s[(s!=s.shift(-1))|(s!=s.shift(1))]
-        
-        x = s.index
-        y = s.values
-        
-        if len(x):
-            self.add_series(x, y)
+
+        if self.bin_size == 0:
+            counts = collections.defaultdict(int)
             
+            with self.opener_fn(self.bam_path) as bam:
+                for read in bam.fetch(chrom, scale.start, scale.end):
+                    if read.is_secondary and not self.include_secondary: continue
+                    for i in read.get_reference_positions():
+                        counts[i] += 1
+            
+            x = np.arange(scale.start, scale.end+1)
+            y = np.empty(scale.end - scale.start + 1, dtype=int)
+            for i, curx in enumerate(x):
+                y[i] = counts[curx]
+            
+            s = pd.Series(y, index=x).sort_index()
+            s = s[(s!=s.shift(-1))|(s!=s.shift(1))]
+            
+            x = s.index
+            y = s.values
+            
+            if len(x):
+                self.add_series(x, y)
+
+        else:
+            # Initialize list of counters for each bin's start and end positions
+            # +2 because +1 for included and +1 for reads that are aligned since upstream
+            num_bins = ((scale.end - scale.start) // self.bin_size) + 2
+            start_counts_bins = [collections.Counter() for _ in range(num_bins)]
+            end_counts_bins = [collections.Counter() for _ in range(num_bins)]
+
+            print("scale.strand = ", scale.strand)
+            print("self.priming_orientation = ", self.priming_orientation)
+            if (scale.strand == "+" and self.priming_orientation == "5p") or (scale.strand == "-" and self.priming_orientation == "3p"):
+                print("using start positions for binning")
+                # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
+                with self.opener_fn(self.bam_path) as bam:
+                    for read in bam.fetch(chrom, scale.start, scale.end):
+                        if read.is_secondary and not self.include_secondary:
+                            continue
+
+                        # Use the start of the first block to determine the bin
+                        blocks = read.get_blocks()
+                        if not blocks:
+                            continue
+
+                        start_pos = read.reference_start  # Start of the first block
+
+                        if start_pos < scale.start:  # Assign to the first bin if starts before viewed window
+                            for block in blocks:
+                                block_start, block_end = block[0], block[1]
+                                if block_end < scale.start:  # ignore blocks that are fully outside the window
+                                    continue
+                                start_counts_bins[0][block_start] += 1
+                                end_counts_bins[0][block_end] += 1
+                        else:
+                            # start_bin = max(0, (start_pos - scale.start) // bin_size) + 1   # +1 because bin 0 is the upstream reads
+                            start_bin = ((start_pos - scale.start) // self.bin_size) + 1   # +1 because bin 0 is the upstream reads
+                            for block in blocks:
+                                block_start, block_end = block[0], block[1]
+                                start_counts_bins[start_bin][block_start] += 1
+                                end_counts_bins[start_bin][block_end] += 1
+
+            else: # "+" strand and "3p" or "-" strand and "5p"
+                # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
+                print("using end positions for binning")
+                with self.opener_fn(self.bam_path) as bam:
+                    for read in bam.fetch(chrom, scale.start, scale.end):
+                        if read.is_secondary and not self.include_secondary:
+                            continue
+
+                        # Use the start of the first block to determine the bin
+                        blocks = read.get_blocks()
+                        if not blocks:
+                            continue
+
+                        end_pos = read.reference_end  # Start of the first block
+
+                        if end_pos > scale.end:  # Assign to the first bin if starts before viewed window
+                            for block in blocks:
+                                block_start, block_end = block[0], block[1]
+                                if block_end < scale.start:  # ignore blocks that are fully outside the window
+                                    continue
+                                start_counts_bins[0][block_start] += 1
+                                end_counts_bins[0][block_end] += 1
+                        else:
+                            # start_bin = max(0, (start_pos - scale.start) // bin_size) + 1   # +1 because bin 0 is the upstream reads
+                            end_bin = ((scale.end - end_pos) // self.bin_size) + 1   # +1 because bin 0 is the upstream reads
+                            for block in blocks:
+                                block_start, block_end = block[0], block[1]
+                                start_counts_bins[end_bin][block_start] += 1
+                                end_counts_bins[end_bin][block_end] += 1
+
+
+            # Create layers for each bin without cumulating depth initially
+            layers = []
+            for bin_index in range(num_bins):
+                start_counts_bin = start_counts_bins[bin_index]
+                end_counts_bin = end_counts_bins[bin_index]
+
+                positions = sorted(start_counts_bin.keys() | end_counts_bin.keys())
+
+                if not positions:  # can instead probably check either counts_bin before the union too
+                    continue
+
+                # Initialize arrays to store x (positions) and y (depth) for this bin
+                x = np.array(positions)
+                y = np.zeros_like(x, dtype=int)
+
+                current_depth = 0
+                for i, pos in enumerate(x):
+                    # Update current depth based on the starts and ends at this position
+                    current_depth += start_counts_bin[pos] - end_counts_bin[pos]
+                    y[i] = current_depth
+
+                # Seems to be faster overall to just keep consecutive values as such, maybe due to less resizing operations?
+                # # Create a pandas Series and remove consecutive identical values
+                # s = pd.Series(y, index=x).sort_index()
+                # s = s[(s != s.shift(-1)) | (s != s.shift(1))]
+
+                # # Store x and y for this layer
+                # layers.append((s.index, s.values))
+                layers.append((x, y))
+
+            # Now go back and update each layer to take into account the layer just below it
+            for bin_index in range(1, len(layers)):
+                x_current, y_current = layers[bin_index]
+                x_prev, y_prev = layers[bin_index - 1]
+
+                # Ensure both x and y are updated to reflect changes from the previous layer
+                x_combined = np.union1d(x_prev, x_current)  # Combine x values from both layers
+                y_updated = np.zeros_like(x_combined, dtype=int)
+
+                i, j, k = 0, 0, 0  # i for x_prev, j for x_current, k for x_combined
+                while i < len(x_prev) and j < len(x_current):
+                    if x_prev[i] == x_current[j]:
+                        y_updated[k] = y_current[j] + y_prev[i]
+                        i += 1
+                        j += 1
+                    elif x_current[j] < x_prev[i]:
+                        y_updated[k] = y_current[j] + y_prev[i-1]
+                        j += 1
+                    else:
+                        y_updated[k] =  y_current[j-1] + y_prev[i]
+                        i += 1
+                    k += 1
+                while i < len(x_prev):
+                    y_updated[k] =  y_current[j-1] + y_prev[i]
+                    i += 1
+                    k += 1
+                while j < len(x_current):
+                    y_updated[k] = y_current[j] + y_prev[i-1]
+                    j += 1
+                    k += 1
+
+                # Update the current layer with the cumulated depth
+                layers[bin_index] = (x_combined, y_updated)
+
+            # Plot each layer's x, y series from last to first
+            print("there are ", len(layers), " layers")
+            for b in reversed(range(len(layers))):
+                x, y = layers[b]
+                if len(x):
+                    # Convert lists to numpy arrays and plot
+                    color = BINNED_COLORS[b % len(BINNED_COLORS)]
+                    # self.add_series(np.array(x), np.array(y), color=color)
+                    self.add_series(x, y, color=color)
+
+
+
+
+
+
+
+
+
+
+
+
+                
