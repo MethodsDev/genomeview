@@ -1376,6 +1376,8 @@ class Configuration:
                              custom_bed_dict = None,
                              with_bed = True,
                              with_coverage = True,
+                             fill_coverage = True,
+                             coverage_bin_size = 0,
                              with_reads = True,
                              expended = False,
                              **kwargs):
@@ -1447,7 +1449,8 @@ class Configuration:
                                                  with_coverage = True,
                                                  with_bed = False,
                                                  add_track_label = False,
-                                                 fill_coverage = True,
+                                                 fill_coverage = fill_coverage,
+                                                 coverage_bin_size = coverage_bin_size,
                                                  **kwargs
                                                 )._repr_svg__() + "</br>"
 
