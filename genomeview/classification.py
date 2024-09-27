@@ -14,11 +14,6 @@ class Classification(ABC):
     """
 
     @abstractmethod
-    def index_region(self, reference, start, end, region):
-        pass
-        # method that will be called using the gene/transcript information to allow caching information
-
-    @abstractmethod
     def get_classification(self, read, gene_id):
         pass
         # should return a list of classifcations (because of possible ambiguous)
@@ -111,5 +106,6 @@ class BAMtagClassification(Classification):
 
     def get_classification(self, read, gene_id):
         return get_read_tag(read, self.tag)
+
 
 
