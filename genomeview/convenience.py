@@ -1374,7 +1374,9 @@ class Configuration:
                              interval,
                              tab_name,
                              custom_bed_dict = None,
+                             with_bed = True,
                              with_coverage = True,
+                             with_reads = True,
                              expended = False,
                              **kwargs):
         """
@@ -1412,7 +1414,7 @@ class Configuration:
 
         shared_static_svg = bed_config.plot_interval(bams_dict={},
                                                      interval = interval,
-                                                     with_bed = True,
+                                                     with_bed = with_bed,
                                                      with_reads = False,
                                                      with_coverage = False,
                                                      add_track_label = False,
@@ -1431,7 +1433,7 @@ class Configuration:
                 bed_config.update_bed(custom_bed_dict[key])
                 static_svg += bed_config.plot_interval(bams_dict={},
                                                        interval = interval,
-                                                       with_bed = True,
+                                                       with_bed = with_bed,
                                                        with_reads = False,
                                                        with_coverage = False,
                                                        add_track_label = False,
@@ -1451,7 +1453,7 @@ class Configuration:
 
             resizable_svg += self.plot_interval(bams_dict = {key: bam},
                                                 interval = interval,
-                                                with_reads = True,
+                                                with_reads = with_reads,
                                                 with_coverage = False,
                                                 with_axis = False,
                                                 with_bed = False,
