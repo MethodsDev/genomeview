@@ -751,28 +751,29 @@ class BAMCoverageTrack(GraphTrack):
 
     def _add_single_coverage(self, scale, chrom):
 
-        counts = collections.defaultdict(int)
+        counts = collections.Counter()
         
         with self.opener_fn(self.bam_path) as bam:
             for read in bam.fetch(chrom, scale.start, scale.end):
                 if read.is_secondary and not self.include_secondary:
                     continue
                 for i in read.get_reference_positions():
-                    counts[i] += 1
+                    if scale.start <= i < scale.end:
+                        counts[i - scale.start] += 1
+
+        if not counts:
+            return
         
-        x = np.arange(scale.start, scale.end+1)
-        y = np.empty(scale.end - scale.start + 1, dtype=int)
-        for i, curx in enumerate(x):
-            y[i] = counts[curx]
-        
-        s = pd.Series(y, index=x).sort_index()
-        s = s[(s!=s.shift(-1))|(s!=s.shift(1))]
-        
-        x = s.index
-        y = s.values
-        
-        if len(x):
-            self.add_series(x, y)
+        x, y = zip(*sorted(counts.items()))
+        x = np.array(x)
+        y = np.array(y)
+
+        # find edges of coverage track
+        ydiff = np.diff(y) != 0
+        # include points before and after a change in coverage
+        ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
+
+        self.add_series(scale.start + ix.nonzero()[0], y[ix])
 
     def _add_binned_coverage(self, scale, chrom):
         coverage = collections.defaultdict(collections.Counter)
