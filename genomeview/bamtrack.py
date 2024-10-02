@@ -363,6 +363,9 @@ class VirtualBAM():
         # toggle this to not return reads that only align around the region but not actually inside the region when fetching/piluping
         self.aligned_chunks_only = False
 
+        # toggle to return all reads stored in order, regardless of start/end
+        self.dumb_fetch = False
+
     def __enter__(self):
         return self
  
@@ -392,6 +395,11 @@ class VirtualBAM():
 
     def fetch(self, chrom=None, start=None, end=None):
         seen = set()
+        if self.dumb_fetch:
+            for read in self.reads:
+                yield read
+            return
+
         if chrom is None:
             if self.is_indexed:
                 if self.aligned_chunks_only:
@@ -422,6 +430,7 @@ class VirtualBAM():
                 for read in self.reads:
                     if read.reference_name == chrom and read.reference_start < end and read.reference_end > start:
                         yield read
+
 
     def point_fetch(self, chrom=None, start=None, end=None):
         if chrom is None:

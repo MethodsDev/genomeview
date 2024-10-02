@@ -63,10 +63,10 @@ class IntervalTrack(Track):
                 self.rows.append(None)
                 row = len(self.rows) - 1
         
-        new_end = self.scale.topixels(interval.end) + self.margin_x
-        if interval.label is not None:
-            new_end += len(interval.label) * self.row_height * 0.75
-        self.rows[row] = new_end
+            new_end = self.scale.topixels(interval.end) + self.margin_x
+            if interval.label is not None:
+                new_end += len(interval.label) * self.row_height * 0.75
+            self.rows[row] = new_end
 
         assert not interval.id in self.intervals_to_rows
         self.intervals_to_rows[interval.id] = row

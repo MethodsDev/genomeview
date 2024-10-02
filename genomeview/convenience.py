@@ -1216,31 +1216,26 @@ class Configuration:
 
         max_coverage_dict = {}
         virtual_bams_dict = {}
-        bam_path_to_series = {}
+        bam_track_to_series = {}
         for key, value in bams_dict.items():
 
-            virtual_bams_dict[key] = []
             all_reads_for_coverage = set()
 
             bam_refs = None
             opener_fn = get_bam_opener(value)
             with opener_fn(value) as bam:
                 bam_refs = bam.references
-                for interval in intervals_list:
-                    for read in bam.fetch(interval.chrom, interval.begin - padding, interval.end + padding):
-                        if not include_secondary and read.is_secondary:
-                            continue
-                        all_reads_for_coverage.add(read)
-
-                coverage_bam = genomeview.bamtrack.VirtualBAM(all_reads_for_coverage, bam_refs)
-                coverage_bam.index()
-
-                for read in coverage_bam.fetch():
-                    bam_track = genomeview.bamtrack.VirtualBAM([read], bam_refs)
-                    bam_track.quick_consensus = False
-                    virtual_bams_dict[key].append(bam_track)
+                virtual_bam = genomeview.bamtrack.VirtualBAM([], bam_refs)
+                virtual_bam.dumb_fetch = True
+                # bam_track.quick_consensus = False
                 
-                # max_coverage_dict[key] = get_virtualbam_max_coverage(coverage_bam)
+                for read in bam.fetch(intervals_list[0].chrom, left_bound, right_bound):
+                    if not include_secondary and read.is_secondary:
+                        continue
+                    # add check that it does overlap with intervals_list at least somewhere
+                    virtual_bam.reads.append(read)
+
+                virtual_bams_dict[key] = virtual_bam
 
             tmp_view = genomeview.GenomeView(intervals_list[0].chrom, left_bound, right_bound, intervals_list[0].strand)
             coverage_track_series = genomeview.BAMCoverageTrack(value, opener_fn)
@@ -1249,16 +1244,16 @@ class Configuration:
             if "coverage_bin_size" in kwargs:
                 coverage_track_series.bin_size = kwargs["coverage_bin_size"]
             coverage_track_series.layout(tmp_view.scale)
-            bam_path_to_series[value] = coverage_track_series.series
+            bam_track_to_series[virtual_bam] = coverage_track_series.series
             max_coverage_dict[key] = coverage_track_series.max_y
-            # coverage_track_series.min_y
 
 
-        bed_config = self.shallow_copy()
+        bed_config = self  # default, if not with_bed_labels, use the original since not modifying it
         new_beds = {}
         new_bed_labels = {}
         secondary_new_bed_labels = {}
         if with_bed_label:
+            bed_config = self.shallow_copy()
             if type(self.bed_annotation) is dict:
                 for bed_name, bed_path in self.bed_annotation.items():
                     is_not_first = 0
@@ -1294,6 +1289,19 @@ class Configuration:
                             seen_bed_entries.add(bed_entry.name)
                             i += 1
                 bed_config.update_bed(new_beds)
+            else:  # just a string
+                new_bed_labels = False
+                secondary_new_bed_labels = False
+                i = 0
+                # seen_bed_entries = set()
+                for interval in intervals_list:
+                    for bed_entry in genomeview.bedtrack.bed_fetch(self.bed_annotation, interval.chrom, left_bound, right_bound):
+                        if bed_entry.name in seen_bed_entries:
+                            continue
+                        new_key = "__tmp_" + str(i)
+                        new_beds[new_key] = genomeview.VirtualBEDTrack(transcripts=[bed_entry], name=None)
+                        i += 1
+                bed_config.update_bed(new_beds)
         else:
             new_bed_labels = False
 
@@ -1322,7 +1330,8 @@ class Configuration:
                                                  end = end,
                                                  chrom = chrom,
                                                  strand = strand,
-                                                 bams_dict = bams_dict, 
+                                                 bams_dict = virtual_bams_dict, 
+                                                 vertical_layout_reads = True,
                                                  padding_perc = padding_perc, 
                                                  add_track_label = add_track_label,
                                                  add_reads_label = add_reads_label,
@@ -1334,16 +1343,18 @@ class Configuration:
                                                  coverage_track_max_y = max_coverage_dict,
                                                  **kwargs)
 
-            for track in row.views[-1].get_tracks():
-                if isinstance(track, genomeview.bamtrack.BAMCoverageTrack):
-                    track.series = bam_path_to_series[track.bam_path]
-                    track.cached_series = True
 
             if add_track_label:
                 add_track_label = "\n"
             new_bed_labels = secondary_new_bed_labels
             add_reads_label = None
             add_coverage_label = None
+
+            for track in row.views[-1].get_tracks():
+                if isinstance(track, genomeview.bamtrack.BAMCoverageTrack):
+                    # track.series = bam_path_to_series[track.bam_path]
+                    track.series = bam_track_to_series[track.bam_path]
+                    track.cached_series = True
 
         doc.elements.append(row)
         return doc

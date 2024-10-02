@@ -48,7 +48,7 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
             with_coverage=False,
             add_track_label=False,
             **kwargs
-        )._repr_svg_()
+        )._repr_svg__()
         
 
         tab_sections = []
@@ -65,7 +65,7 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
                 add_track_label=False,
                 fill_coverage=True,
                 **kwargs
-            )._repr_svg_()
+            )._repr_svg__()
 
             reads_svg = config.plot_interval(
                 bams_dict={classification: virtual_bam},
@@ -78,7 +78,7 @@ def plot_sorted_support_as_tabs(config, bams_dict, page_title, **kwargs):
                 add_reads_label=False,
                 vertical_layout_reads=True,
                 **kwargs
-            )._repr_svg_()
+            )._repr_svg__()
 
             tab_sections.append({
                 'unique_id': unique_id,
