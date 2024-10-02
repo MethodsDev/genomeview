@@ -819,7 +819,7 @@ class BAMCoverageTrack(GraphTrack):
                 if scale.start <= j < scale.end:
                     coverage[bin_index][j - scale.start] += 1
 
-            self._add_multi_coverage(scale, coverage)
+        self._add_multi_coverage(scale, coverage)
 
     def add_peak_coverage(self, scale):
         read_ends = collections.Counter()
