@@ -1414,17 +1414,14 @@ class Configuration:
         else:
             bed_config.update_bed(self.bed_annotation)
 
-        if len(bams_dict) > 1:
-            shared_static_svg = bed_config.plot_interval(bams_dict={},
-                                                        interval = interval,
-                                                        with_bed = with_bed,
-                                                        with_reads = False,
-                                                        with_coverage = False,
-                                                        add_track_label = False,
-                                                        **kwargs
-                                                        )._repr_svg__()
-        else:
-            shared_static_svg = ""
+        shared_static_svg = bed_config.plot_interval(bams_dict={},
+                                                    interval = interval,
+                                                    with_bed = with_bed,
+                                                    with_reads = False,
+                                                    with_coverage = False,
+                                                    add_track_label = False,
+                                                    **kwargs
+                                                    )._repr_svg__()
         
         tab_sections = []
         for key, bam in bams_dict.items():
@@ -1450,6 +1447,7 @@ class Configuration:
                                                  interval = interval,
                                                  with_reads = False,
                                                  with_coverage = True,
+                                                 with_axis = len(bams_dict) > 1,
                                                  with_bed = False,
                                                  add_track_label = False,
                                                  fill_coverage = fill_coverage,
