@@ -766,26 +766,22 @@ class BAMCoverageTrack(GraphTrack):
                 yield read
 
     def add_single_coverage(self, scale):
-        coverage = collections.Counter()
+        coverage = np.zeros(scale.end - scale.start, dtype=int)
 
         for read in self._get_reads(scale):
             for i in read.get_reference_positions():
                 if scale.start <= i < scale.end:
                     coverage[i - scale.start] += 1
 
-        if not coverage:
+        if not (coverage > 0).any():
             return
-        
-        x, y = zip(*sorted(coverage.items()))
-        x = np.array(x)
-        y = np.array(y)
 
         # find edges of coverage track
-        ydiff = np.diff(y) != 0
+        ydiff = np.diff(coverage) != 0
         # include points before and after a change in coverage
         ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
 
-        self.add_series(scale.start + ix.nonzero()[0], y[ix])
+        self.add_series(scale.start + ix.nonzero()[0], coverage[ix])
 
     def add_binned_coverage(self, scale):
         coverage = collections.defaultdict(collections.Counter)
