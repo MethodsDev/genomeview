@@ -726,9 +726,8 @@ class BAMCoverageTrack(GraphTrack):
         if name is None and isinstance(name, str):
             name = os.path.basename(bam_path.split(".")[0])
         super().__init__(name=name)
-        
+
         self.bam_path = bam_path
-        # self.bam = pysam.AlignmentFile(bam_path)
         self.opener_fn = opener_fn
         with self.opener_fn(bam_path) as bam:
             self.bam_references = bam.references
@@ -776,15 +775,9 @@ class BAMCoverageTrack(GraphTrack):
             self.add_series(x, y)
 
     def _add_binned_coverage(self, scale, chrom):
-        # Initialize list of counters for each bin's start and end positions
-        # +2 because +1 for included and +1 for reads that are aligned since upstream
-        num_bins = ((scale.end - scale.start) // self.bin_size) + 2
+        coverage = collections.defaultdict(collections.Counter)
 
-        # array of coverage tracks
-        # coverage = np.zeros((num_bins, scale.end - scale.start), dtype=int)
-        coverage = collections.defaultdict(lambda: np.zeros(num_bins, dtype=int))
-
-        # flag to indicate if reads start from left or right side of the figure
+        # flag to indicate which side RT started from
         is_fwd = (
             (scale.strand == "+" and self.priming_orientation == "5p")
             or (scale.strand == "-" and self.priming_orientation == "3p")
@@ -797,11 +790,11 @@ class BAMCoverageTrack(GraphTrack):
                     continue
 
                 # get all the reference coordinates that are aligned to the read
-                aligned_pairs = read.get_aligned_pairs(matches_only=True)
+                aligned_pos = read.get_reference_positions()
 
                 # this shouldn't happen, should it?
                 # could also check if any coordinates are in the region of interest
-                if not aligned_pairs:
+                if not aligned_pos:
                     continue
 
                 if is_fwd:
@@ -817,22 +810,29 @@ class BAMCoverageTrack(GraphTrack):
                     else:
                         bin_index = ((scale.end - end_pos) // self.bin_size) + 1
 
-                for _, j in aligned_pairs:
+                for j in aligned_pos:
                     if scale.start <= j < scale.end:
-                        coverage[j - scale.start][bin_index] += 1
+                        coverage[bin_index][j - scale.start] += 1
 
-        x = np.array(sorted(coverage))
-        # flag when x coordinate is changing, always keep this
-        xdiff = np.diff(x, prepend=-1) > 1
-        # use cumsum to calculate total coverage at all locations
-        cumulative_coverage = np.vstack([np.cumsum(coverage[i]) for i in x])
+        cumulative_coverage = np.zeros(scale.end - scale.start, dtype=int)
+        layers = []
+
+        for bin_index in sorted(coverage):
+            x, y = zip(*sorted(coverage[bin_index].items()))
+            x = np.array(x)
+            y = np.array(y)
+            cumulative_coverage[x] += y
+
+            # find edges of coverage track
+            ydiff = np.diff(cumulative_coverage) != 0
+            # include points before and after a change in coverage
+            ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
+
+            layers.append((bin_index, scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
 
         # reverse this because the tracks overlap, need shortest in front
-        for bin_index in reversed(range(num_bins)):
+        for bin_index, x, y in reversed(layers):
+            # note: this can skip colors because bin_index might not be sequential
+            # maybe should use itertools.cycle() instead
             color = BINNED_COLORS[bin_index % len(BINNED_COLORS)]
-            y = cumulative_coverage[bin_index, :]
-            # calculate diff to figure out when coverage is changing
-            ix = xdiff | (np.diff(y, prepend=-1) != 0)
-
-            # only plot changing coordinates to save space
-            self.add_series(x[ix], y[ix], color=color)
+            self.add_series(x, y, color=color)
