@@ -1247,6 +1247,10 @@ class Configuration:
                 coverage_track_series.priming_orientation = kwargs["priming_orientation"]
             if "coverage_bin_size" in kwargs:
                 coverage_track_series.bin_size = kwargs["coverage_bin_size"]
+            if "coverage_tag" in kwargs:
+                coverage_track_series.tag = kwargs["coverage_tag"]
+            if "coverage_tag_fn" in kwargs:
+                coverage_track_series.tag_fn = kwargs["coverage_tag_fn"]
             coverage_track_series.layout(tmp_view.scale)
             bam_track_to_series[virtual_bam] = coverage_track_series.series
             max_coverage_dict[key] = coverage_track_series.max_y
