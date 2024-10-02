@@ -779,11 +779,11 @@ class BAMCoverageTrack(GraphTrack):
         # Initialize list of counters for each bin's start and end positions
         # +2 because +1 for included and +1 for reads that are aligned since upstream
         num_bins = ((scale.end - scale.start) // self.bin_size) + 2
+
+        # array of coverage tracks
         coverage = np.zeros((num_bins, scale.end - scale.start), dtype=int)
 
-        # start_counts_bins = [collections.Counter() for _ in range(num_bins)]
-        # end_counts_bins = [collections.Counter() for _ in range(num_bins)]
-
+        # flag to indicate if reads start from left or right side of the figure
         is_fwd = (
             (scale.strand == "+" and self.priming_orientation == "5p")
             or (scale.strand == "-" and self.priming_orientation == "3p")
@@ -794,9 +794,12 @@ class BAMCoverageTrack(GraphTrack):
             for read in bam.fetch(chrom, scale.start, scale.end):
                 if read.is_secondary and not self.include_secondary:
                     continue
-                
-                # alternatively: use aligned pairs to save time
+
+                # get all the reference coordinates that are aligned to the read
                 aligned_pairs = read.get_aligned_pairs(matches_only=True)
+
+                # this shouldn't happen, should it?
+                # could also check if any coordinates are in the region of interest
                 if not aligned_pairs:
                     continue
 
@@ -817,12 +820,17 @@ class BAMCoverageTrack(GraphTrack):
                     if scale.start <= j < scale.end:
                         coverage[bin_index, j - scale.start] += 1
 
-        # Create layers for each bin without cumulating depth initially
-        # layers = []
+        # x is always the same
         x = np.arange(scale.start, scale.end)
+        # use cumsum to calculate total coverage
         cumulative_coverage = np.cumsum(coverage, axis=0)
 
-        for bin_index in range(num_bins):
+        # reverse this because the tracks overlap, need shortest in front
+        for bin_index in reversed(range(num_bins)):
             color = BINNED_COLORS[bin_index % len(BINNED_COLORS)]
+            y = cumulative_coverage[bin_index, :]
+            # calculate diff to figure out when coverage is changing
+            ydiff = np.diff(y, prepend=-1)
 
-            self.add_series(x, cumulative_coverage[bin_index, :], color=color)
+            # only plot changing coordinates to save space
+            self.add_series(x[ydiff != 0], y[ydiff != 0], color=color)
