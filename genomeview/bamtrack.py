@@ -722,6 +722,8 @@ class GroupedBAMTrack(Track):
 
 
 class BAMCoverageTrack(GraphTrack):
+    MAX_BINS = 10
+
     def __init__(self, bam_path, name=None, opener_fn=pysam.AlignmentFile):
         if name is None and isinstance(name, str):
             name = os.path.basename(bam_path.split(".")[0])
@@ -732,7 +734,10 @@ class BAMCoverageTrack(GraphTrack):
         with self.opener_fn(bam_path) as bam:
             self.bam_references = bam.references
         self.include_secondary = False
+        self.min_dist = 0
         self.bin_size = 0
+        self.tag = None
+        self.tag_fn = None
         self.priming_orientation = "3p"
         self.cached_series = False
         
@@ -742,29 +747,36 @@ class BAMCoverageTrack(GraphTrack):
         if len(self.series) > 0 and self.cached_series:
             return
 
+        if self.tag is not None:
+            self.add_tagged_coverage(scale)
+        elif self.min_dist > 0:
+            self.add_peak_coverage(scale)
+        elif self.bin_size > 0:
+            self.add_binned_coverage(scale)
+        else:
+            self.add_single_coverage(scale)
+
+    def _get_reads(self, scale):
         chrom = match_chrom_format(scale.chrom, self.bam_references)
 
-        if self.bin_size == 0:
-            self._add_single_coverage(scale, chrom)
-        else:
-            self._add_binned_coverage(scale, chrom)
-
-    def _add_single_coverage(self, scale, chrom):
-
-        counts = collections.Counter()
-        
         with self.opener_fn(self.bam_path) as bam:
             for read in bam.fetch(chrom, scale.start, scale.end):
                 if read.is_secondary and not self.include_secondary:
                     continue
-                for i in read.get_reference_positions():
-                    if scale.start <= i < scale.end:
-                        counts[i - scale.start] += 1
+                yield read
 
-        if not counts:
+    def add_single_coverage(self, scale):
+        coverage = collections.Counter()
+
+        for read in self._get_reads(scale):
+            for i in read.get_reference_positions():
+                if scale.start <= i < scale.end:
+                    coverage[i - scale.start] += 1
+
+        if not coverage:
             return
         
-        x, y = zip(*sorted(counts.items()))
+        x, y = zip(*sorted(coverage.items()))
         x = np.array(x)
         y = np.array(y)
 
@@ -775,7 +787,7 @@ class BAMCoverageTrack(GraphTrack):
 
         self.add_series(scale.start + ix.nonzero()[0], y[ix])
 
-    def _add_binned_coverage(self, scale, chrom):
+    def add_binned_coverage(self, scale):
         coverage = collections.defaultdict(collections.Counter)
 
         # flag to indicate which side RT started from
@@ -785,41 +797,108 @@ class BAMCoverageTrack(GraphTrack):
         )
 
         # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
-        with self.opener_fn(self.bam_path) as bam:
-            for read in bam.fetch(chrom, scale.start, scale.end):
-                if read.is_secondary and not self.include_secondary:
-                    continue
+        for read in self._get_reads(scale):
+            # get all the reference coordinates that are aligned to the read
+            aligned_pos = read.get_reference_positions()
 
-                # get all the reference coordinates that are aligned to the read
-                aligned_pos = read.get_reference_positions()
+            # this shouldn't happen, should it?
+            # could also check if any coordinates are in the region of interest
+            if not aligned_pos:
+                continue
 
-                # this shouldn't happen, should it?
-                # could also check if any coordinates are in the region of interest
-                if not aligned_pos:
-                    continue
-
-                if is_fwd:
-                    start_pos = read.reference_start
-                    if start_pos < scale.start:
-                        bin_index = 0
-                    else:
-                        bin_index = ((start_pos - scale.start) // self.bin_size) + 1
+            if is_fwd:
+                start_pos = read.reference_start
+                if start_pos < scale.start:
+                    bin_index = 0
                 else:
-                    end_pos = read.reference_end
-                    if end_pos > scale.end:
-                        bin_index = 0
-                    else:
-                        bin_index = ((scale.end - end_pos) // self.bin_size) + 1
+                    bin_index = ((start_pos - scale.start) // self.bin_size) + 1
+            else:
+                end_pos = read.reference_end
+                if end_pos > scale.end:
+                    bin_index = 0
+                else:
+                    bin_index = ((scale.end - end_pos) // self.bin_size) + 1
 
-                for j in aligned_pos:
-                    if scale.start <= j < scale.end:
-                        coverage[bin_index][j - scale.start] += 1
+            for j in aligned_pos:
+                if scale.start <= j < scale.end:
+                    coverage[bin_index][j - scale.start] += 1
+
+            self._add_multi_coverage(scale, coverage)
+
+    def add_peak_coverage(self, scale):
+        read_ends = collections.Counter()
+
+        # flag to indicate which side RT started from
+        is_fwd = (
+            (scale.strand == "+" and self.priming_orientation == "5p")
+            or (scale.strand == "-" and self.priming_orientation == "3p")
+        )
+
+        for read in self._get_reads(scale):
+            if is_fwd:
+                read_ends[read.reference_start] += 1
+            else:
+                read_ends[read.reference_end] += 1
+
+        most_common = read_ends.most_common()
+        peaks = []
+        for i, (v, w) in enumerate(most_common[:BAMCoverageTrack.MAX_BINS]):
+            if min((abs(v - v2) for v2, _ in most_common[:i]), default=self.min_dist) >= self.min_dist:
+                peaks.append(v)
+
+        coverage = collections.defaultdict(collections.Counter)
+
+        for read in self._get_reads(scale):
+            # get all the reference coordinates that are aligned to the read
+            aligned_pos = read.get_reference_positions()
+
+            # this shouldn't happen, should it?
+            # could also check if any coordinates are in the region of interest
+            if not aligned_pos:
+                continue
+
+            if is_fwd:
+                pos = read.reference_start
+            else:
+                pos = read.reference_end
+
+            bin_index = min(peaks, key=lambda p: abs(pos - p))
+            if abs(pos - bin_index) > self.min_dist:
+                bin_index = -1
+
+            for j in aligned_pos:
+                if scale.start <= j < scale.end:
+                    coverage[bin_index][j - scale.start] += 1
+
+        self._add_multi_coverage(scale, coverage)
+
+    def add_tagged_coverage(self, scale):
+        coverage = collections.defaultdict(collections.Counter)
+
+        for read in self._get_reads(scale):
+            if not read.has_tag(self.tag):
+                continue
+
+            aligned_pos = read.get_reference_positions()
+            tag_value = read.get_tag(self.tag)
+            if self.tag_fn is not None:
+                tag_value = self.tag_fn(tag_value)
+
+            for j in aligned_pos:
+                if scale.start <= j < scale.end:
+                    coverage[tag_value][j - scale.start] += 1
+
+        self._add_multi_coverage(scale, coverage)
+
+    def _add_multi_coverage(self, scale, coverage):
+        """Takes a scale object and a dictionary of coverages and creates the
+        cumulative coverage plot"""
 
         cumulative_coverage = np.zeros(scale.end - scale.start, dtype=int)
         layers = []
 
-        for bin_index in sorted(coverage):
-            x, y = zip(*sorted(coverage[bin_index].items()))
+        for i in sorted(coverage):
+            x, y = zip(*sorted(coverage[i].items()))
             x = np.array(x)
             y = np.array(y)
             cumulative_coverage[x] += y
@@ -829,11 +908,9 @@ class BAMCoverageTrack(GraphTrack):
             # include points before and after a change in coverage
             ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
 
-            layers.append((bin_index, scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
+            layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
 
         # reverse this because the tracks overlap, need shortest in front
-        for bin_index, x, y in reversed(layers):
-            # note: this can skip colors because bin_index might not be sequential
-            # maybe should use itertools.cycle() instead
-            color = BINNED_COLORS[bin_index % len(BINNED_COLORS)]
+        for i, (x, y) in enumerate(reversed(layers)):
+            color = BINNED_COLORS[i % len(BINNED_COLORS)]
             self.add_series(x, y, color=color)
