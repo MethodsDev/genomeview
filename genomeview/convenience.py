@@ -1426,12 +1426,12 @@ class Configuration:
             bed_config.update_bed(self.bed_annotation)
 
         shared_static_svg = bed_config.plot_interval(bams_dict={},
-                                                     interval = interval,
-                                                     with_bed = with_bed,
-                                                     with_reads = False,
-                                                     with_coverage = False,
-                                                     add_track_label = False,
-                                                     **kwargs
+                                                    interval = interval,
+                                                    with_bed = with_bed,
+                                                    with_reads = False,
+                                                    with_coverage = False,
+                                                    add_track_label = False,
+                                                    **kwargs
                                                     )._repr_svg__()
         
         tab_sections = []
@@ -1458,6 +1458,7 @@ class Configuration:
                                                  interval = interval,
                                                  with_reads = False,
                                                  with_coverage = True,
+                                                 with_axis = len(bams_dict) > 1,
                                                  with_bed = False,
                                                  add_track_label = False,
                                                  fill_coverage = fill_coverage,
@@ -1465,17 +1466,18 @@ class Configuration:
                                                  **kwargs
                                                 )._repr_svg__() + "</br>"
 
-            resizable_svg += self.plot_interval(bams_dict = {key: bam},
-                                                interval = interval,
-                                                with_reads = with_reads,
-                                                with_coverage = False,
-                                                with_axis = False,
-                                                with_bed = False,
-                                                add_track_label = False,
-                                                add_reads_label = False,
-                                                vertical_layout_reads = True,
-                                                **kwargs
-                                               )._repr_svg__() + "</br>"
+            if with_reads:
+                resizable_svg += self.plot_interval(bams_dict = {key: bam},
+                                                    interval = interval,
+                                                    with_reads = with_reads,
+                                                    with_coverage = False,
+                                                    with_axis = False,
+                                                    with_bed = False,
+                                                    add_track_label = False,
+                                                    add_reads_label = False,
+                                                    vertical_layout_reads = True,
+                                                    **kwargs
+                                                )._repr_svg__() + "</br>"
 
             tab_sections.append({
                 'unique_id': unique_id,

@@ -15,8 +15,10 @@
         <div class="genomeview-content static-genomeview-content">
             {{ tab_section.static_svg | safe }}
         </div>
+        {% if tab_section.resizable_svg %}
         <div id="svgContainer" class="resizable">
             {{ tab_section.resizable_svg | safe }}
         </div>
+        {% endif %}
     </div>
 {% endfor %}
