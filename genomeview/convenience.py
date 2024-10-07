@@ -437,7 +437,7 @@ class Configuration:
 
         if row is None:
             row = genomeview.ViewRow("row")
-        gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, "+", self.genome_fasta)
+        gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, strand, self.genome_fasta)
         # gene_view = genomeview.GenomeView(chrom, start - padding, end + padding, "+", self.source)
         if add_track_label:
             if add_track_label == "auto":
