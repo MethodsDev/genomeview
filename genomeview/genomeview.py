@@ -15,7 +15,7 @@ class Document:
         
     def __init__(self, width):
         self.id = "genomeview_svg_" + str(self.doc_counter)
-        self.doc_counter += 1
+        Document.doc_counter += 1
 
         self.elements = []
         self.width = width
