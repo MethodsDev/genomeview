@@ -105,7 +105,7 @@ class BAMtagClassification(Classification):
         self.tag = tag
 
     def get_classification(self, read, gene_id):
-        return get_read_tag(read, self.tag)
+        return [get_read_tag(read, self.tag)]
 
 
 
