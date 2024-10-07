@@ -458,12 +458,11 @@ class Configuration:
 
 
             if with_coverage:
+                coverage_label = ""
                 if add_coverage_label:
                     if add_coverage_label == "auto":
-                        add_coverage_label = key
-                else:
-                    add_coverage_label = ""
-                coverage_track = genomeview.BAMCoverageTrack(value, name=add_coverage_label, **opener_kwargs)
+                        coverage_label = key
+                coverage_track = genomeview.BAMCoverageTrack(value, name=coverage_label, **opener_kwargs)
                 coverage_track.bin_size = coverage_bin_size
                 coverage_track.priming_orientation = priming_orientation
                 coverage_track.height = coverage_height
