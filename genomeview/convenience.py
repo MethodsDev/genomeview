@@ -1826,10 +1826,10 @@ class Configuration:
         An HTML document : str
         """
 
-        (feature_id, feature_type) = self.get_feature_info(gene)
-        if feature_type != "gene":
-            print("feature provided is not a gene")
-            return -1
+        (feature_id, feature_type) = self.get_feature_info(feature)
+        # if feature_type != "gene":
+        #     print("feature provided is not a gene")
+        #     return -1
 
         interval = self.get_interval_from_feature((feature_id, feature_type))
 
