@@ -126,7 +126,7 @@ def split_bam_by_cellbarcode_whitelist(bam_name,
 
 def split_bam_by_classification(bam_file,
                                 name_prefix,
-                                gene_id,
+                                feature_id,
                                 interval,
                                 classification_from,
                                 cellbarcode_from = None,
@@ -159,7 +159,7 @@ def split_bam_by_classification(bam_file,
                     continue
                 whitelist += "_"
 
-            classifications = classification_from.get_classification(read, gene_id)
+            classifications = classification_from.get_classification(read, feature_id)
             if classifications is None:
                 if name_prefix + whitelist + "unclassified" not in tmp_reads:
                     tmp_reads[name_prefix + whitelist + "unclassified"] = []

@@ -1693,7 +1693,7 @@ class Configuration:
     # here whitelist is just that, a whitelist, there is no split based on which dict key a barcode is found in
     def split_bams_dict_by_classification(self,
                                           bams_dict,
-                                          gene,
+                                          feature,
                                           classification_from,
                                           annotation_matching,
                                           **kwargs):
@@ -1720,10 +1720,10 @@ class Configuration:
         A tuple with a dict of virtual BAMs and a dict of virtual BEDs with matching keys, where provided input (virtual) BAMs are split according to classification. : tuple(dict, dict)
         """
         
-        (feature_id, feature_type) = self.get_feature_info(gene)
-        if feature_type != "gene":
-            print("feature provided is not a gene")
-            return -1
+        (feature_id, feature_type) = self.get_feature_info(feature)
+        # if feature_type != "gene":
+        #     print("feature provided is not a gene")
+        #     return -1
 
         interval = self.get_interval_from_feature((feature_id, feature_type))
 
@@ -1731,7 +1731,7 @@ class Configuration:
         for bam_name, bam_file in bams_dict.items():
             virtual_bams_dict.update(genomeview.split_bam_by_classification(bam_file = bam_file,
                                                                             name_prefix = bam_name,
-                                                                            gene_id = feature_id,
+                                                                            feature_id = feature_id,
                                                                             interval = interval,
                                                                             classification_from = classification_from,
                                                                             **kwargs))
@@ -1780,7 +1780,7 @@ class Configuration:
         for feature in features_list:
             (virtual_bams_dict_dict[feature], virtual_beds_dict_dict[feature]) = \
                             self.split_bams_dict_by_classification(bams_dict = bams_dict,
-                                                                   gene = feature,
+                                                                   feature = feature,
                                                                    classification_from = classification_from,
                                                                    annotation_matching = annotation_matching,
                                                                    **kwargs
@@ -1796,7 +1796,7 @@ class Configuration:
 
     def plot_by_classification_as_tabs(self,
                                        bams_dict,
-                                       gene,
+                                       feature,
                                        classification_from,
                                        annotation_matching,
                                        page_title = "Split by Classification",
@@ -1837,7 +1837,7 @@ class Configuration:
         for bam_name, bam_file in bams_dict.items():
             for classification, virtual_bam in (genomeview.split_bam_by_classification(bam_file = bam_file,
                                                                                        name_prefix = "",
-                                                                                       gene_id = feature_id,
+                                                                                       feature_id = feature_id,
                                                                                        interval = interval,
                                                                                        classification_from = classification_from,
                                                                                        **kwargs)).items():
