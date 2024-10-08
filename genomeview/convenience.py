@@ -700,6 +700,8 @@ class Configuration:
 
         if isinstance(feature, tuple):
             (feature_id, feature_type) = feature
+        elif isinstance(feature, Interval):
+            return feature
         else:
             (feature_id, feature_type) = self.get_feature_info(feature)
         return self.id_to_coordinates[feature_id]
