@@ -1375,7 +1375,7 @@ class Configuration:
         """
 
         if isinstance(feature, Interval):
-            return interval.data + ":" + str(interval.begin) + "-" + str(interval.end)
+            return feature.data + ":" + str(feature.begin) + "-" + str(feature.end)
 
         (feature_id, feature_type) = self.get_feature_info(feature)
         gene_name = self.get_gene_name((feature_id, feature_type))
