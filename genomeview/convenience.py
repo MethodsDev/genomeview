@@ -1531,19 +1531,19 @@ class Configuration:
 
         tabs = []
         for feature, bams_dict in bams_dict_dict.items():
-            feature_name = str(feature)
-            print(feature_name)
+            #feature_name = str(feature)
+            print(feature)
             # (feature_id, feature_type) = self.get_feature_info(feature_name)
             # interval = self.id_to_coordinates[feature_id]
             interval = self.get_interval_from_feature(feature)
 
             custom_bed_dict = None
-            if custom_bed_dict_dict is not None and feature_name in custom_bed_dict_dict:
-                custom_bed_dict = custom_bed_dict_dict[feature_name]
+            if custom_bed_dict_dict is not None and feature in custom_bed_dict_dict:
+                custom_bed_dict = custom_bed_dict_dict[feature]
 
             tabs.append(self.organize_tab_section(bams_dict = bams_dict,
                                                   interval = interval, 
-                                                  tab_name = tab_title_fn(feature_name),
+                                                  tab_name = tab_title_fn(feature),
                                                   custom_bed_dict = custom_bed_dict,
                                                   **kwargs))
 
