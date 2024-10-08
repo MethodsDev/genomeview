@@ -698,10 +698,10 @@ class Configuration:
         The Interval with the coordinates of the feature. : :class:`~intervaltree.Interval`
         """
 
-        if isinstance(feature, tuple):
-            (feature_id, feature_type) = feature
-        elif isinstance(feature, Interval):
+        if isinstance(feature, Interval):
             return feature
+        elif isinstance(feature, tuple):
+            (feature_id, feature_type) = feature
         else:
             (feature_id, feature_type) = self.get_feature_info(feature)
         return self.id_to_coordinates[feature_id]
