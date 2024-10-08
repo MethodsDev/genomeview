@@ -1629,8 +1629,8 @@ class Configuration:
 
         virtual_bams_dict = {}
         for feature in features_list:
-            feature_name = str(feature)
-            virtual_bams_dict[feature_name] = {}
+            # feature_name = str(feature)
+            virtual_bams_dict[feature] = {}
 
             if cellbarcode_from is not None and cellbarcode_whitelist is not None:
 
@@ -1638,14 +1638,14 @@ class Configuration:
                 for bam_name, bam_file in bams_dict.items():
 
                     #for bam_name, bam_file in bams_dict.items():
-                    virtual_bams_dict[feature_name].update(genomeview.split_bam_by_cellbarcode_whitelist(bam_name,
+                    virtual_bams_dict[feature].update(genomeview.split_bam_by_cellbarcode_whitelist(bam_name,
                                                                                                     bam_file,
                                                                                                     interval,
                                                                                                     cellbarcode_whitelist = cellbarcode_whitelist,
                                                                                                     cellbarcode_from = cellbarcode_from))
             else:
                 for bam_name, bam_file in bams_dict.items():
-                    virtual_bams_dict[feature_name][bam_name] = bam_file
+                    virtual_bams_dict[feature][bam_name] = bam_file
 
 
         tabs = self.organize_tabs_by_feature(virtual_bams_dict, **kwargs)
