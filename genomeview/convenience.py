@@ -1253,10 +1253,11 @@ class Configuration:
         secondary_new_bed_labels = {}
         if with_bed_label:
             bed_config = self.shallow_copy()
+            seen_bed_entries = set()
             if type(self.bed_annotation) is dict:
                 for bed_name, bed_path in self.bed_annotation.items():
                     is_not_first = 0
-                    seen_bed_entries = set()
+                    # seen_bed_entries = set()
                     for interval in intervals_list:
                         for bed_entry in genomeview.bedtrack.bed_fetch(bed_path, interval.chrom, interval.begin, interval.end):
                             if bed_entry.name in seen_bed_entries:
@@ -1278,7 +1279,7 @@ class Configuration:
                 secondary_new_bed_labels = False
                 i = 0
                 for bed_path in self.bed_annotation:
-                    seen_bed_entries = set()
+                    # seen_bed_entries = set()
                     for interval in intervals_list:
                         for bed_entry in genomeview.bedtrack.bed_fetch(bed_path, interval.chrom, interval.begin, interval.end):
                             if bed_entry.name in seen_bed_entries:
@@ -1292,7 +1293,7 @@ class Configuration:
                 new_bed_labels = False
                 secondary_new_bed_labels = False
                 i = 0
-                # seen_bed_entries = set()
+                
                 for interval in intervals_list:
                     for bed_entry in genomeview.bedtrack.bed_fetch(self.bed_annotation, interval.chrom, left_bound, right_bound):
                         if bed_entry.name in seen_bed_entries:
