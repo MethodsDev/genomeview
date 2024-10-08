@@ -721,7 +721,9 @@ class Configuration:
         The gene name of the feature. : str
         """
 
-        if isinstance(feature, tuple):
+        if isinstance(feature, Interval):
+            return interval.data + ":" + str(interval.begin) + "-" + str(interval.end)
+        elif isinstance(feature, tuple):
             (feature_id, feature_type) = feature
         else:
             (feature_id, feature_type) = self.get_feature_info(feature)
