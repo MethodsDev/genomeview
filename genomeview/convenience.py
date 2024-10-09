@@ -1300,6 +1300,7 @@ class Configuration:
                     for bed_entry in genomeview.bedtrack.bed_fetch(self.bed_annotation, interval.chrom, left_bound, right_bound):
                         if bed_entry.name in seen_bed_entries:
                             continue
+                        seen_bed_entries.add(bed_entry.name)
                         new_key = "__tmp_" + str(i)
                         new_beds[new_key] = genomeview.VirtualBEDTrack(transcripts=[bed_entry], name=None)
                         i += 1
