@@ -1806,6 +1806,7 @@ class Configuration:
                                        classification_from,
                                        annotation_matching,
                                        page_title = "Split by Classification",
+                                       add_all_tab = True,
                                        **kwargs):
         """
         Returns an HTML object to output or display, with views separated over tabs by the list of features provided. Within tabs, split in subtabs by BAMs.
@@ -1849,7 +1850,10 @@ class Configuration:
                                                                                        **kwargs)).items():
                 if classification not in virtual_bams_dict_dict:
                     virtual_bams_dict_dict[classification] = {}
-                virtual_bams_dict_dict[classification][bam_name] = virtual_bam      
+                virtual_bams_dict_dict[classification][bam_name] = virtual_bam     
+
+            if add_all_tab:
+                virtual_bams_dict_dict["all"][bam_name] = bam_file 
 
         # parse known annotations
         virtual_bed_dict = self.match_classification_to_bed_entries(virtual_bams_dict_dict.keys(), interval, annotation_matching)
