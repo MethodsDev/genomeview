@@ -1239,7 +1239,7 @@ class Configuration:
                 virtual_bams_dict[key] = virtual_bam
 
             tmp_view = genomeview.GenomeView(intervals_list[0].chrom, left_bound, right_bound, intervals_list[0].strand)
-            coverage_track_series = genomeview.BAMCoverageTrack(value, opener_fn)
+            coverage_track_series = genomeview.BAMCoverageTrack(value, opener_fn=opener_fn)
             if "priming_orientation" in kwargs:
                 coverage_track_series.priming_orientation = kwargs["priming_orientation"]
             if "coverage_bin_size" in kwargs:
