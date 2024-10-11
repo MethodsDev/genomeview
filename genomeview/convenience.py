@@ -1841,6 +1841,8 @@ class Configuration:
         interval = self.get_interval_from_feature((feature_id, feature_type))
 
         virtual_bams_dict_dict = {}
+        if add_all_tab:
+            virtual_bams_dict_dict["all"] = {} 
         for bam_name, bam_file in bams_dict.items():
             for classification, virtual_bam in (genomeview.split_bam_by_classification(bam_file = bam_file,
                                                                                        name_prefix = "",
