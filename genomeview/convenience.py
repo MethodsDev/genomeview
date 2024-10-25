@@ -439,7 +439,7 @@ class Configuration:
 
         if row is None:
             row = genomeview.ViewRow("row")
-        gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, "+", self.genome_fasta)
+        gene_view = genomeview.GenomeView(chrom, max(0, start - padding), end + padding, strand, self.genome_fasta)
         # gene_view = genomeview.GenomeView(chrom, start - padding, end + padding, "+", self.source)
         if add_track_label:
             if add_track_label == "auto":
@@ -460,12 +460,11 @@ class Configuration:
 
 
             if with_coverage:
+                coverage_label = ""
                 if add_coverage_label:
                     if add_coverage_label == "auto":
-                        add_coverage_label = key
-                else:
-                    add_coverage_label = ""
-                coverage_track = genomeview.BAMCoverageTrack(value, name=add_coverage_label, **opener_kwargs)
+                        coverage_label = key
+                coverage_track = genomeview.BAMCoverageTrack(value, name=coverage_label, **opener_kwargs)
                 coverage_track.bin_size = coverage_bin_size
                 coverage_track.priming_orientation = priming_orientation
                 coverage_track.height = coverage_height
@@ -703,7 +702,9 @@ class Configuration:
         The Interval with the coordinates of the feature. : :class:`~intervaltree.Interval`
         """
 
-        if isinstance(feature, tuple):
+        if isinstance(feature, Interval):
+            return feature
+        elif isinstance(feature, tuple):
             (feature_id, feature_type) = feature
         else:
             (feature_id, feature_type) = self.get_feature_info(feature)
@@ -1242,7 +1243,7 @@ class Configuration:
                 virtual_bams_dict[key] = virtual_bam
 
             tmp_view = genomeview.GenomeView(intervals_list[0].chrom, left_bound, right_bound, intervals_list[0].strand)
-            coverage_track_series = genomeview.BAMCoverageTrack(value, opener_fn)
+            coverage_track_series = genomeview.BAMCoverageTrack(value, opener_fn=opener_fn)
             if "priming_orientation" in kwargs:
                 coverage_track_series.priming_orientation = kwargs["priming_orientation"]
             if "coverage_bin_size" in kwargs:
@@ -1262,10 +1263,11 @@ class Configuration:
         secondary_new_bed_labels = {}
         if with_bed_label:
             bed_config = self.shallow_copy()
+            seen_bed_entries = set()
             if type(self.bed_annotation) is dict:
                 for bed_name, bed_path in self.bed_annotation.items():
                     is_not_first = 0
-                    seen_bed_entries = set()
+                    # seen_bed_entries = set()
                     for interval in intervals_list:
                         for bed_entry in genomeview.bedtrack.bed_fetch(bed_path, interval.chrom, interval.begin, interval.end):
                             if bed_entry.name in seen_bed_entries:
@@ -1287,7 +1289,7 @@ class Configuration:
                 secondary_new_bed_labels = False
                 i = 0
                 for bed_path in self.bed_annotation:
-                    seen_bed_entries = set()
+                    # seen_bed_entries = set()
                     for interval in intervals_list:
                         for bed_entry in genomeview.bedtrack.bed_fetch(bed_path, interval.chrom, interval.begin, interval.end):
                             if bed_entry.name in seen_bed_entries:
@@ -1301,11 +1303,12 @@ class Configuration:
                 new_bed_labels = False
                 secondary_new_bed_labels = False
                 i = 0
-                # seen_bed_entries = set()
+                
                 for interval in intervals_list:
                     for bed_entry in genomeview.bedtrack.bed_fetch(self.bed_annotation, interval.chrom, left_bound, right_bound):
                         if bed_entry.name in seen_bed_entries:
                             continue
+                        seen_bed_entries.add(bed_entry.name)
                         new_key = "__tmp_" + str(i)
                         new_beds[new_key] = genomeview.VirtualBEDTrack(transcripts=[bed_entry], name=None)
                         i += 1
@@ -1380,6 +1383,9 @@ class Configuration:
         The name of the gene the feature is part of, or returns back feature. : str
         """
 
+        if isinstance(feature, Interval):
+            return feature.data + ":" + str(feature.begin) + "-" + str(feature.end)
+
         (feature_id, feature_type) = self.get_feature_info(feature)
         gene_name = self.get_gene_name((feature_id, feature_type))
         if gene_name != feature:
@@ -1434,12 +1440,12 @@ class Configuration:
             bed_config.update_bed(self.bed_annotation)
 
         shared_static_svg = bed_config.plot_interval(bams_dict={},
-                                                     interval = interval,
-                                                     with_bed = with_bed,
-                                                     with_reads = False,
-                                                     with_coverage = False,
-                                                     add_track_label = False,
-                                                     **kwargs
+                                                    interval = interval,
+                                                    with_bed = with_bed,
+                                                    with_reads = False,
+                                                    with_coverage = False,
+                                                    add_track_label = False,
+                                                    **kwargs
                                                     )._repr_svg__()
         
         tab_sections = []
@@ -1466,6 +1472,7 @@ class Configuration:
                                                  interval = interval,
                                                  with_reads = False,
                                                  with_coverage = True,
+                                                 with_axis = len(bams_dict) > 1,
                                                  with_bed = False,
                                                  add_track_label = False,
                                                  fill_coverage = fill_coverage,
@@ -1473,17 +1480,18 @@ class Configuration:
                                                  **kwargs
                                                 )._repr_svg__() + "</br>"
 
-            resizable_svg += self.plot_interval(bams_dict = {key: bam},
-                                                interval = interval,
-                                                with_reads = with_reads,
-                                                with_coverage = False,
-                                                with_axis = False,
-                                                with_bed = False,
-                                                add_track_label = False,
-                                                add_reads_label = False,
-                                                vertical_layout_reads = True,
-                                                **kwargs
-                                               )._repr_svg__() + "</br>"
+            if with_reads:
+                resizable_svg += self.plot_interval(bams_dict = {key: bam},
+                                                    interval = interval,
+                                                    with_reads = with_reads,
+                                                    with_coverage = False,
+                                                    with_axis = False,
+                                                    with_bed = False,
+                                                    add_track_label = False,
+                                                    add_reads_label = False,
+                                                    vertical_layout_reads = True,
+                                                    **kwargs
+                                                )._repr_svg__() + "</br>"
 
             tab_sections.append({
                 'unique_id': unique_id,
@@ -1531,18 +1539,20 @@ class Configuration:
             tab_title_fn = self.get_gene_tab_title
 
         tabs = []
-        for feature_name, bams_dict in bams_dict_dict.items():
-            print(feature_name)
-            (feature_id, feature_type) = self.get_feature_info(feature_name)
-            interval = self.id_to_coordinates[feature_id]
+        for feature, bams_dict in bams_dict_dict.items():
+            #feature_name = str(feature)
+            print(feature)
+            # (feature_id, feature_type) = self.get_feature_info(feature_name)
+            # interval = self.id_to_coordinates[feature_id]
+            interval = self.get_interval_from_feature(feature)
 
             custom_bed_dict = None
-            if custom_bed_dict_dict is not None and feature_name in custom_bed_dict_dict:
-                custom_bed_dict = custom_bed_dict_dict[feature_name]
+            if custom_bed_dict_dict is not None and feature in custom_bed_dict_dict:
+                custom_bed_dict = custom_bed_dict_dict[feature]
 
             tabs.append(self.organize_tab_section(bams_dict = bams_dict,
                                                   interval = interval, 
-                                                  tab_name = tab_title_fn(feature_id),
+                                                  tab_name = tab_title_fn(feature),
                                                   custom_bed_dict = custom_bed_dict,
                                                   **kwargs))
 
@@ -1630,13 +1640,13 @@ class Configuration:
         """
 
         virtual_bams_dict = {}
-        if cellbarcode_from is not None and cellbarcode_whitelist is not None:
+        for feature in features_list:
+            # feature_name = str(feature)
+            virtual_bams_dict[feature] = {}
 
-            for feature in features_list:
+            if cellbarcode_from is not None and cellbarcode_whitelist is not None:
 
                 interval = self.get_interval_from_feature(feature)
-                virtual_bams_dict[feature] = {}
-
                 for bam_name, bam_file in bams_dict.items():
 
                     #for bam_name, bam_file in bams_dict.items():
@@ -1645,10 +1655,7 @@ class Configuration:
                                                                                                     interval,
                                                                                                     cellbarcode_whitelist = cellbarcode_whitelist,
                                                                                                     cellbarcode_from = cellbarcode_from))
-        else:
-            for feature in features_list:
-                virtual_bams_dict[feature] = {}
-
+            else:
                 for bam_name, bam_file in bams_dict.items():
                     virtual_bams_dict[feature][bam_name] = bam_file
 
@@ -1700,7 +1707,7 @@ class Configuration:
     # here whitelist is just that, a whitelist, there is no split based on which dict key a barcode is found in
     def split_bams_dict_by_classification(self,
                                           bams_dict,
-                                          gene,
+                                          feature,
                                           classification_from,
                                           annotation_matching,
                                           **kwargs):
@@ -1727,10 +1734,10 @@ class Configuration:
         A tuple with a dict of virtual BAMs and a dict of virtual BEDs with matching keys, where provided input (virtual) BAMs are split according to classification. : tuple(dict, dict)
         """
         
-        (feature_id, feature_type) = self.get_feature_info(gene)
-        if feature_type != "gene":
-            print("feature provided is not a gene")
-            return -1
+        (feature_id, feature_type) = self.get_feature_info(feature)
+        # if feature_type != "gene":
+        #     print("feature provided is not a gene")
+        #     return -1
 
         interval = self.get_interval_from_feature((feature_id, feature_type))
 
@@ -1738,7 +1745,7 @@ class Configuration:
         for bam_name, bam_file in bams_dict.items():
             virtual_bams_dict.update(genomeview.split_bam_by_classification(bam_file = bam_file,
                                                                             name_prefix = bam_name,
-                                                                            gene_id = feature_id,
+                                                                            feature_id = feature_id,
                                                                             interval = interval,
                                                                             classification_from = classification_from,
                                                                             **kwargs))
@@ -1787,7 +1794,7 @@ class Configuration:
         for feature in features_list:
             (virtual_bams_dict_dict[feature], virtual_beds_dict_dict[feature]) = \
                             self.split_bams_dict_by_classification(bams_dict = bams_dict,
-                                                                   gene = feature,
+                                                                   feature = feature,
                                                                    classification_from = classification_from,
                                                                    annotation_matching = annotation_matching,
                                                                    **kwargs
@@ -1803,10 +1810,11 @@ class Configuration:
 
     def plot_by_classification_as_tabs(self,
                                        bams_dict,
-                                       gene,
+                                       feature,
                                        classification_from,
                                        annotation_matching,
                                        page_title = "Split by Classification",
+                                       add_all_tab = True,
                                        **kwargs):
         """
         Returns an HTML object to output or display, with views separated over tabs by the list of features provided. Within tabs, split in subtabs by BAMs.
@@ -1833,24 +1841,29 @@ class Configuration:
         An HTML document : str
         """
 
-        (feature_id, feature_type) = self.get_feature_info(gene)
-        if feature_type != "gene":
-            print("feature provided is not a gene")
-            return -1
+        (feature_id, feature_type) = self.get_feature_info(feature)
+        # if feature_type != "gene":
+        #     print("feature provided is not a gene")
+        #     return -1
 
         interval = self.get_interval_from_feature((feature_id, feature_type))
 
         virtual_bams_dict_dict = {}
+        if add_all_tab:
+            virtual_bams_dict_dict["all"] = {} 
         for bam_name, bam_file in bams_dict.items():
             for classification, virtual_bam in (genomeview.split_bam_by_classification(bam_file = bam_file,
                                                                                        name_prefix = "",
-                                                                                       gene_id = feature_id,
+                                                                                       feature_id = feature_id,
                                                                                        interval = interval,
                                                                                        classification_from = classification_from,
                                                                                        **kwargs)).items():
                 if classification not in virtual_bams_dict_dict:
                     virtual_bams_dict_dict[classification] = {}
-                virtual_bams_dict_dict[classification][bam_name] = virtual_bam      
+                virtual_bams_dict_dict[classification][bam_name] = virtual_bam     
+
+            if add_all_tab:
+                virtual_bams_dict_dict["all"][bam_name] = bam_file 
 
         # parse known annotations
         virtual_bed_dict = self.match_classification_to_bed_entries(virtual_bams_dict_dict.keys(), interval, annotation_matching)
