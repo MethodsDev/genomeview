@@ -797,10 +797,10 @@ class BAMCoverageTrack(GraphTrack):
             # get all the reference coordinates that are aligned to the read
             aligned_pos = read.get_reference_positions()
 
-            # this shouldn't happen, should it?
+            # this shouldn't happen, should it? -> should not because fetch is used on the region so only reads aligning there will be returned
             # could also check if any coordinates are in the region of interest
-            if not aligned_pos:
-                continue
+            # if not aligned_pos:
+            #    continue
 
             if is_fwd:
                 start_pos = read.reference_start
@@ -848,10 +848,10 @@ class BAMCoverageTrack(GraphTrack):
             # get all the reference coordinates that are aligned to the read
             aligned_pos = read.get_reference_positions()
 
-            # this shouldn't happen, should it?
+            # this shouldn't happen, should it? -> should not because fetch is used on the region so only reads aligning there will be returned
             # could also check if any coordinates are in the region of interest
-            if not aligned_pos:
-                continue
+            # if not aligned_pos:
+            #    continue
 
             if is_fwd:
                 pos = read.reference_start
@@ -902,11 +902,17 @@ class BAMCoverageTrack(GraphTrack):
             # find edges of coverage track
             ydiff = np.diff(cumulative_coverage) != 0
             # include points before and after a change in coverage
-            ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
+            # ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
+            # only need the point where the coverage changes, the renderer handles adding both points to the geometry
+            ix = np.hstack([True, ydiff])
 
             layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
 
-        # reverse this because the tracks overlap, need shortest in front
+
+        # reverse(layers) because the tracks overlap, need shortest in front
         for i, (x, y) in enumerate(reversed(layers)):
-            color = BINNED_COLORS[i % len(BINNED_COLORS)]
+            color = BINNED_COLORS[(len(layers) - 1 - i) % len(BINNED_COLORS)]
             self.add_series(x, y, color=color)
+
+
+
