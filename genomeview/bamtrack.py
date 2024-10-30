@@ -797,11 +797,6 @@ class BAMCoverageTrack(GraphTrack):
             # get all the reference coordinates that are aligned to the read
             aligned_pos = read.get_reference_positions()
 
-            # this shouldn't happen, should it? -> should not because fetch is used on the region so only reads aligning there will be returned
-            # could also check if any coordinates are in the region of interest
-            # if not aligned_pos:
-            #    continue
-
             _coverage = coverage
             if is_fwd:
                 start_pos = read.reference_start
@@ -853,11 +848,6 @@ class BAMCoverageTrack(GraphTrack):
             # get all the reference coordinates that are aligned to the read
             aligned_pos = read.get_reference_positions()
 
-            # this shouldn't happen, should it? -> should not because fetch is used on the region so only reads aligning there will be returned
-            # could also check if any coordinates are in the region of interest
-            # if not aligned_pos:
-            #    continue
-
             if is_fwd:
                 pos = read.reference_start
             else:
@@ -865,8 +855,8 @@ class BAMCoverageTrack(GraphTrack):
 
             bin_index = min(peaks, key=lambda p: abs(pos - p))
             _coverage = coverage
-            if abs(pos - bin_index) >= self.min_dist:  # or equal
-                bin_index = -1  # this bin should get a static color because it will incoporate reads that start all over which makes things confusing
+            if abs(pos - bin_index) >= self.min_dist:
+                bin_index = -1
                 _coverage = secondary_coverage
 
             for j in aligned_pos:
@@ -919,26 +909,6 @@ class BAMCoverageTrack(GraphTrack):
 
                 _layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
 
-        # for i in sorted(coverage):
-        #     x, y = zip(*sorted(coverage[i].items()))  # is this better than just for (x,y in coverage[i].items()){cumulative_coverage[x] += y} ?
-        #     x = np.array(x)
-        #     y = np.array(y)
-        #     cumulative_coverage[x] += y
-
-        #     # find edges of coverage track
-        #     ydiff = np.diff(cumulative_coverage) != 0
-        #     # include points before and after a change in coverage
-        #     # ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
-        #     # only need the point where the coverage changes, the renderer handles adding both points to the geometry
-        #     ix = np.hstack([True, ydiff])
-
-        #     # if i in secondary_coverage:
-        #     if i < 0:
-        #         secondary_layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
-        #     else:
-        #         layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
-
- 
         # reverse(layers) because the tracks overlap, need shortest in front
         for i, (x, y) in enumerate(reversed(secondary_layers)):
             color = SECONDARY_COLORS[(len(secondary_layers) - 1 - i) % len(SECONDARY_COLORS)]
