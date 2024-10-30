@@ -20,6 +20,8 @@ BINNED_COLORS = ["#1F618D", "#b2182b", "#f4a582", "#9B59B6", "#85929E",
                  "#B53471", "#EE5A24", "#009432", "#0652DD", "#9980FA",
                  "#833471", "#EA2027", "#006266", "#1B1464", "#5758BB",
                  "#6F1E51"]
+SECONDARY_COLORS = ["#AAAAAA", "#AFFFFF", "#FFAFFF", "#FFFFAF"]
+SECONDARY_COLORS = ["#000000", "#AFFFFF", "#FFAFFF", "#FFFFAF"]
 
 
 class Series:

@@ -13,7 +13,7 @@ from genomeview.track import Track
 from genomeview.intervaltrack import Interval, IntervalTrack
 from genomeview import MismatchCounts
 from genomeview.utilities import match_chrom_format
-from genomeview.graphtrack import GraphTrack, BINNED_COLORS
+from genomeview.graphtrack import GraphTrack, BINNED_COLORS, SECONDARY_COLORS
 
 
 def allreads(read):
@@ -785,6 +785,7 @@ class BAMCoverageTrack(GraphTrack):
 
     def add_binned_coverage(self, scale):
         coverage = collections.defaultdict(collections.Counter)
+        secondary_coverage = collections.defaultdict(collections.Counter)
 
         # flag to indicate which side RT started from
         is_fwd = (
@@ -802,24 +803,27 @@ class BAMCoverageTrack(GraphTrack):
             # if not aligned_pos:
             #    continue
 
+            _coverage = coverage
             if is_fwd:
                 start_pos = read.reference_start
                 if start_pos < scale.start:
-                    bin_index = 0
+                    bin_index = -1
+                    _coverage = secondary_coverage
                 else:
-                    bin_index = ((start_pos - scale.start) // self.bin_size) + 1
+                    bin_index = ((start_pos - scale.start) // self.bin_size) # + 1
             else:
                 end_pos = read.reference_end
                 if end_pos > scale.end:
-                    bin_index = 0
+                    bin_index = -1
+                    _coverage = secondary_coverage
                 else:
-                    bin_index = ((scale.end - end_pos) // self.bin_size) + 1
+                    bin_index = ((scale.end - end_pos) // self.bin_size) # + 1
 
             for j in aligned_pos:
                 if scale.start <= j < scale.end:
-                    coverage[bin_index][j - scale.start] += 1
+                    _coverage[bin_index][j - scale.start] += 1
 
-        self._add_multi_coverage(scale, coverage)
+        self._add_multi_coverage(scale, coverage, secondary_coverage)
 
     def add_peak_coverage(self, scale):
         read_ends = collections.Counter()
@@ -838,12 +842,14 @@ class BAMCoverageTrack(GraphTrack):
 
         most_common = read_ends.most_common()
         peaks = []
-        for i, (v, w) in enumerate(most_common[:BAMCoverageTrack.MAX_BINS]):
+        for i, (v, w) in enumerate(most_common[:BAMCoverageTrack.MAX_BINS]):  # could enumerate on the whole most_common and break when MAX_BINS reached to try to get to that number, especially for ONT data
             if min((abs(v - v2) for v2, _ in most_common[:i]), default=self.min_dist) >= self.min_dist:
                 peaks.append(v)
 
         coverage = collections.defaultdict(collections.Counter)
+        secondary_coverage = collections.defaultdict(collections.Counter)
 
+        # TODO change bin_index to take into account peak height when sorting? Otherwise at least take into account is_fwd
         for read in self._get_reads(scale):
             # get all the reference coordinates that are aligned to the read
             aligned_pos = read.get_reference_positions()
@@ -859,57 +865,86 @@ class BAMCoverageTrack(GraphTrack):
                 pos = read.reference_end
 
             bin_index = min(peaks, key=lambda p: abs(pos - p))
-            if abs(pos - bin_index) > self.min_dist:
-                bin_index = -1
+            _coverage = coverage
+            if abs(pos - bin_index) >= self.min_dist:  # or equal
+                bin_index = -1  # this bin should get a static color because it will incoporate reads that start all over which makes things confusing
+                _coverage = secondary_coverage
 
             for j in aligned_pos:
                 if scale.start <= j < scale.end:
-                    coverage[bin_index][j - scale.start] += 1
+                    _coverage[bin_index][j - scale.start] += 1
 
-        self._add_multi_coverage(scale, coverage)
+        self._add_multi_coverage(scale, coverage, secondary_coverage)
 
     def add_tagged_coverage(self, scale):
         coverage = collections.defaultdict(collections.Counter)
+        secondary_coverage = collections.defaultdict(collections.Counter)
 
         for read in self._get_reads(scale):
             if not read.has_tag(self.tag):
-                continue
+                _coverage = secondary_coverage
+                # continue
+            else:
+                _coverage = coverage
 
-            aligned_pos = read.get_reference_positions()
-            tag_value = read.get_tag(self.tag)
-            if self.tag_fn is not None:
-                tag_value = self.tag_fn(tag_value)
+                aligned_pos = read.get_reference_positions()
+                tag_value = read.get_tag(self.tag)
+                if self.tag_fn is not None:
+                    tag_value = self.tag_fn(tag_value)
 
             for j in aligned_pos:
                 if scale.start <= j < scale.end:
-                    coverage[tag_value][j - scale.start] += 1
+                    _coverage[tag_value][j - scale.start] += 1
 
-        self._add_multi_coverage(scale, coverage)
+        self._add_multi_coverage(scale, coverage, secondary_coverage)
 
-    def _add_multi_coverage(self, scale, coverage):
+    def _add_multi_coverage(self, scale, coverage, secondary_coverage=None):
         """Takes a scale object and a dictionary of coverages and creates the
         cumulative coverage plot"""
 
         cumulative_coverage = np.zeros(scale.end - scale.start, dtype=int)
         layers = []
-
-        for i in sorted(coverage):
-            x, y = zip(*sorted(coverage[i].items()))
-            x = np.array(x)
-            y = np.array(y)
-            cumulative_coverage[x] += y
-
-            # find edges of coverage track
-            ydiff = np.diff(cumulative_coverage) != 0
-            # include points before and after a change in coverage
-            # ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
-            # only need the point where the coverage changes, the renderer handles adding both points to the geometry
-            ix = np.hstack([True, ydiff])
-
-            layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
+        secondary_layers = []
 
 
+        for _coverage, _layers in zip([coverage, secondary_coverage], [layers, secondary_layers]):
+            for i in sorted(_coverage):
+                x, y = zip(*sorted(_coverage[i].items()))  # is this better than just for (x,y in coverage[i].items()){cumulative_coverage[x] += y} ?
+                x = np.array(x)
+                y = np.array(y)
+                cumulative_coverage[x] += y
+
+                # find edges of coverage track
+                ydiff = np.diff(cumulative_coverage) != 0
+                # ix = np.hstack([True, ydiff])
+                ix = np.hstack([True, ydiff[:-1], True])
+
+                _layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
+
+        # for i in sorted(coverage):
+        #     x, y = zip(*sorted(coverage[i].items()))  # is this better than just for (x,y in coverage[i].items()){cumulative_coverage[x] += y} ?
+        #     x = np.array(x)
+        #     y = np.array(y)
+        #     cumulative_coverage[x] += y
+
+        #     # find edges of coverage track
+        #     ydiff = np.diff(cumulative_coverage) != 0
+        #     # include points before and after a change in coverage
+        #     # ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
+        #     # only need the point where the coverage changes, the renderer handles adding both points to the geometry
+        #     ix = np.hstack([True, ydiff])
+
+        #     # if i in secondary_coverage:
+        #     if i < 0:
+        #         secondary_layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
+        #     else:
+        #         layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
+
+ 
         # reverse(layers) because the tracks overlap, need shortest in front
+        for i, (x, y) in enumerate(reversed(secondary_layers)):
+            color = SECONDARY_COLORS[(len(secondary_layers) - 1 - i) % len(SECONDARY_COLORS)]
+            self.add_series(x, y, color=color)
         for i, (x, y) in enumerate(reversed(layers)):
             color = BINNED_COLORS[(len(layers) - 1 - i) % len(BINNED_COLORS)]
             self.add_series(x, y, color=color)
