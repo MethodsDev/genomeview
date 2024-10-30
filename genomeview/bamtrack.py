@@ -836,14 +836,17 @@ class BAMCoverageTrack(GraphTrack):
 
         most_common = read_ends.most_common()
         peaks = []
-        for i, (v, w) in enumerate(most_common[:BAMCoverageTrack.MAX_BINS]):  # could enumerate on the whole most_common and break when MAX_BINS reached to try to get to that number, especially for ONT data
+        for i, (v, w) in enumerate(most_common):
             if min((abs(v - v2) for v2, _ in most_common[:i]), default=self.min_dist) >= self.min_dist:
                 peaks.append(v)
+            if len(peaks) >= BAMCoverageTrack.MAX_BINS:
+                break
 
         coverage = collections.defaultdict(collections.Counter)
         secondary_coverage = collections.defaultdict(collections.Counter)
 
         # TODO change bin_index to take into account peak height when sorting? Otherwise at least take into account is_fwd
+        multiplier = 1 if is_fwd else -1
         for read in self._get_reads(scale):
             # get all the reference coordinates that are aligned to the read
             aligned_pos = read.get_reference_positions()
@@ -856,9 +859,10 @@ class BAMCoverageTrack(GraphTrack):
             bin_index = min(peaks, key=lambda p: abs(pos - p))
             _coverage = coverage
             if abs(pos - bin_index) >= self.min_dist:
-                bin_index = -1
+                bin_index = 1
                 _coverage = secondary_coverage
 
+            bin_index *= multiplier
             for j in aligned_pos:
                 if scale.start <= j < scale.end:
                     _coverage[bin_index][j - scale.start] += 1
