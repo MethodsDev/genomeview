@@ -778,8 +778,7 @@ class BAMCoverageTrack(GraphTrack):
 
         # find edges of coverage track
         ydiff = np.diff(coverage) != 0
-        # include points before and after a change in coverage
-        ix = np.hstack([ydiff, True]) | np.hstack([True, ydiff])
+        ix = np.hstack([True, ydiff[:-1], True])
 
         self.add_series(scale.start + ix.nonzero()[0], coverage[ix])
 
@@ -916,7 +915,6 @@ class BAMCoverageTrack(GraphTrack):
 
                 # find edges of coverage track
                 ydiff = np.diff(cumulative_coverage) != 0
-                # ix = np.hstack([True, ydiff])
                 ix = np.hstack([True, ydiff[:-1], True])
 
                 _layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
