@@ -6,7 +6,6 @@ import pandas as pd
 
 import os
 from dataclasses import dataclass
-from typing import List
 
 from intervaltree import IntervalTree
 
@@ -14,7 +13,7 @@ from genomeview.track import Track
 from genomeview.intervaltrack import Interval, IntervalTrack
 from genomeview import MismatchCounts
 from genomeview.utilities import match_chrom_format
-from genomeview.graphtrack import GraphTrack, BINNED_COLORS
+from genomeview.graphtrack import GraphTrack, BINNED_COLORS, SECONDARY_COLORS
 
 
 def allreads(read):
@@ -723,18 +722,22 @@ class GroupedBAMTrack(Track):
 
 
 class BAMCoverageTrack(GraphTrack):
+    MAX_BINS = 10
+
     def __init__(self, bam_path, name=None, opener_fn=pysam.AlignmentFile):
-        if name is None and type(name) is str:
+        if name is None and isinstance(name, str):
             name = os.path.basename(bam_path.split(".")[0])
         super().__init__(name=name)
-        
+
         self.bam_path = bam_path
-        # self.bam = pysam.AlignmentFile(bam_path)
         self.opener_fn = opener_fn
         with self.opener_fn(bam_path) as bam:
             self.bam_references = bam.references
         self.include_secondary = False
+        self.min_dist = 0
         self.bin_size = 0
+        self.tag = None
+        self.tag_fn = None
         self.priming_orientation = "3p"
         self.cached_series = False
         
@@ -744,179 +747,179 @@ class BAMCoverageTrack(GraphTrack):
         if len(self.series) > 0 and self.cached_series:
             return
 
+        if self.tag is not None:
+            self.add_tagged_coverage(scale)
+        elif self.min_dist > 0:
+            self.add_peak_coverage(scale)
+        elif self.bin_size > 0:
+            self.add_binned_coverage(scale)
+        else:
+            self.add_single_coverage(scale)
+
+    def _get_reads(self, scale):
         chrom = match_chrom_format(scale.chrom, self.bam_references)
 
-        if self.bin_size == 0:
-            counts = collections.defaultdict(int)
-            
-            with self.opener_fn(self.bam_path) as bam:
-                for read in bam.fetch(chrom, scale.start, scale.end):
-                    if read.is_secondary and not self.include_secondary: continue
-                    for i in read.get_reference_positions():
-                        counts[i] += 1
-            
-            x = np.arange(scale.start, scale.end+1)
-            y = np.empty(scale.end - scale.start + 1, dtype=int)
-            for i, curx in enumerate(x):
-                y[i] = counts[curx]
-            
-            s = pd.Series(y, index=x).sort_index()
-            s = s[(s!=s.shift(-1))|(s!=s.shift(1))]
-            
-            x = s.index
-            y = s.values
-            
-            if len(x):
-                self.add_series(x, y)
-
-        else:
-            # Initialize list of counters for each bin's start and end positions
-            # +2 because +1 for included and +1 for reads that are aligned since upstream
-            num_bins = ((scale.end - scale.start) // self.bin_size) + 2
-            start_counts_bins = [collections.Counter() for _ in range(num_bins)]
-            end_counts_bins = [collections.Counter() for _ in range(num_bins)]
-
-            if (scale.strand == "+" and self.priming_orientation == "5p") or (scale.strand == "-" and self.priming_orientation == "3p"):
-                # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
-                with self.opener_fn(self.bam_path) as bam:
-                    for read in bam.fetch(chrom, scale.start, scale.end):
-                        if read.is_secondary and not self.include_secondary:
-                            continue
-
-                        # Use the start of the first block to determine the bin
-                        blocks = read.get_blocks()
-                        if not blocks:
-                            continue
-
-                        start_pos = read.reference_start  # Start of the first block
-
-                        if start_pos < scale.start:  # Assign to the first bin if starts before viewed window
-                            for block in blocks:
-                                block_start, block_end = block[0], block[1]
-                                if block_end < scale.start:  # ignore blocks that are fully outside the window
-                                    continue
-                                start_counts_bins[0][block_start] += 1
-                                end_counts_bins[0][block_end] += 1
-                        else:
-                            # start_bin = max(0, (start_pos - scale.start) // bin_size) + 1   # +1 because bin 0 is the upstream reads
-                            start_bin = ((start_pos - scale.start) // self.bin_size) + 1   # +1 because bin 0 is the upstream reads
-                            for block in blocks:
-                                block_start, block_end = block[0], block[1]
-                                start_counts_bins[start_bin][block_start] += 1
-                                end_counts_bins[start_bin][block_end] += 1
-
-            else: # "+" strand and "3p" or "-" strand and "5p"
-                # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
-                with self.opener_fn(self.bam_path) as bam:
-                    for read in bam.fetch(chrom, scale.start, scale.end):
-                        if read.is_secondary and not self.include_secondary:
-                            continue
-
-                        # Use the start of the first block to determine the bin
-                        blocks = read.get_blocks()
-                        if not blocks:
-                            continue
-
-                        end_pos = read.reference_end  # Start of the first block
-
-                        if end_pos > scale.end:  # Assign to the first bin if starts before viewed window
-                            for block in blocks:
-                                block_start, block_end = block[0], block[1]
-                                if block_end < scale.start:  # ignore blocks that are fully outside the window
-                                    continue
-                                start_counts_bins[0][block_start] += 1
-                                end_counts_bins[0][block_end] += 1
-                        else:
-                            # start_bin = max(0, (start_pos - scale.start) // bin_size) + 1   # +1 because bin 0 is the upstream reads
-                            end_bin = ((scale.end - end_pos) // self.bin_size) + 1   # +1 because bin 0 is the upstream reads
-                            for block in blocks:
-                                block_start, block_end = block[0], block[1]
-                                start_counts_bins[end_bin][block_start] += 1
-                                end_counts_bins[end_bin][block_end] += 1
-
-
-            # Create layers for each bin without cumulating depth initially
-            layers = []
-            for bin_index in range(num_bins):
-                start_counts_bin = start_counts_bins[bin_index]
-                end_counts_bin = end_counts_bins[bin_index]
-
-                positions = sorted(start_counts_bin.keys() | end_counts_bin.keys())
-
-                if not positions:  # can instead probably check either counts_bin before the union too
+        with self.opener_fn(self.bam_path) as bam:
+            for read in bam.fetch(chrom, scale.start, scale.end):
+                if read.is_secondary and not self.include_secondary:
                     continue
+                yield read
 
-                # Initialize arrays to store x (positions) and y (depth) for this bin
-                x = np.array(positions)
-                y = np.zeros_like(x, dtype=int)
+    def add_single_coverage(self, scale):
+        coverage = np.zeros(scale.end - scale.start, dtype=int)
 
-                current_depth = 0
-                for i, pos in enumerate(x):
-                    # Update current depth based on the starts and ends at this position
-                    current_depth += start_counts_bin[pos] - end_counts_bin[pos]
-                    y[i] = current_depth
+        for read in self._get_reads(scale):
+            for i in read.get_reference_positions():
+                if scale.start <= i < scale.end:
+                    coverage[i - scale.start] += 1
 
-                # Seems to be faster overall to just keep consecutive values as such, maybe due to less resizing operations?
-                # # Create a pandas Series and remove consecutive identical values
-                # s = pd.Series(y, index=x).sort_index()
-                # s = s[(s != s.shift(-1)) | (s != s.shift(1))]
+        if not (coverage > 0).any():
+            return
 
-                # # Store x and y for this layer
-                # layers.append((s.index, s.values))
-                layers.append((x, y))
+        # find edges of coverage track
+        ydiff = np.diff(coverage) != 0
+        ix = np.hstack([True, ydiff[:-1], True])
 
-            # Now go back and update each layer to take into account the layer just below it
-            for bin_index in range(1, len(layers)):
-                x_current, y_current = layers[bin_index]
-                x_prev, y_prev = layers[bin_index - 1]
+        self.add_series(scale.start + ix.nonzero()[0], coverage[ix])
 
-                # Ensure both x and y are updated to reflect changes from the previous layer
-                x_combined = np.union1d(x_prev, x_current)  # Combine x values from both layers
-                y_updated = np.zeros_like(x_combined, dtype=int)
+    def add_binned_coverage(self, scale):
+        coverage = collections.defaultdict(collections.Counter)
+        secondary_coverage = collections.defaultdict(collections.Counter)
 
-                i, j, k = 0, 0, 0  # i for x_prev, j for x_current, k for x_combined
-                while i < len(x_prev) and j < len(x_current):
-                    if x_prev[i] == x_current[j]:
-                        y_updated[k] = y_current[j] + y_prev[i]
-                        i += 1
-                        j += 1
-                    elif x_current[j] < x_prev[i]:
-                        y_updated[k] = y_current[j] + y_prev[i-1]
-                        j += 1
-                    else:
-                        y_updated[k] =  y_current[j-1] + y_prev[i]
-                        i += 1
-                    k += 1
-                while i < len(x_prev):
-                    y_updated[k] =  y_current[j-1] + y_prev[i]
-                    i += 1
-                    k += 1
-                while j < len(x_current):
-                    y_updated[k] = y_current[j] + y_prev[i-1]
-                    j += 1
-                    k += 1
+        # flag to indicate which side RT started from
+        is_fwd = (
+            (scale.strand == "+" and self.priming_orientation == "5p")
+            or (scale.strand == "-" and self.priming_orientation == "3p")
+        )
 
-                # Update the current layer with the cumulated depth
-                layers[bin_index] = (x_combined, y_updated)
+        # Parse the BAM file and bin by alignment start position, then keep track of all covered blocks' start and ends
+        for read in self._get_reads(scale):
+            # get all the reference coordinates that are aligned to the read
+            aligned_pos = read.get_reference_positions()
 
-            # Plot each layer's x, y series from last to first
-            for b in reversed(range(len(layers))):
-                x, y = layers[b]
-                if len(x):
-                    # Convert lists to numpy arrays and plot
-                    color = BINNED_COLORS[b % len(BINNED_COLORS)]
-                    # self.add_series(np.array(x), np.array(y), color=color)
-                    self.add_series(x, y, color=color)
+            _coverage = coverage
+            if is_fwd:
+                start_pos = read.reference_start
+                if start_pos < scale.start:
+                    bin_index = -1
+                    _coverage = secondary_coverage
+                else:
+                    bin_index = ((start_pos - scale.start) // self.bin_size) # + 1
+            else:
+                end_pos = read.reference_end
+                if end_pos > scale.end:
+                    bin_index = -1
+                    _coverage = secondary_coverage
+                else:
+                    bin_index = ((scale.end - end_pos) // self.bin_size) # + 1
+
+            for j in aligned_pos:
+                if scale.start <= j < scale.end:
+                    _coverage[bin_index][j - scale.start] += 1
+
+        self._add_multi_coverage(scale, coverage, secondary_coverage)
+
+    def add_peak_coverage(self, scale):
+        read_ends = collections.Counter()
+
+        # flag to indicate which side RT started from
+        is_fwd = (
+            (scale.strand == "+" and self.priming_orientation == "5p")
+            or (scale.strand == "-" and self.priming_orientation == "3p")
+        )
+
+        for read in self._get_reads(scale):
+            if is_fwd:
+                read_ends[read.reference_start] += 1
+            else:
+                read_ends[read.reference_end] += 1
+
+        most_common = read_ends.most_common()
+        peaks = []
+        for i, (v, w) in enumerate(most_common):
+            if min((abs(v - v2) for v2, _ in most_common[:i]), default=self.min_dist) >= self.min_dist:
+                peaks.append(v)
+            if len(peaks) >= BAMCoverageTrack.MAX_BINS:
+                break
+
+        coverage = collections.defaultdict(collections.Counter)
+        secondary_coverage = collections.defaultdict(collections.Counter)
+
+        # TODO change bin_index to take into account peak height when sorting? Otherwise at least take into account is_fwd
+        multiplier = 1 if is_fwd else -1
+        for read in self._get_reads(scale):
+            # get all the reference coordinates that are aligned to the read
+            aligned_pos = read.get_reference_positions()
+
+            if is_fwd:
+                pos = read.reference_start
+            else:
+                pos = read.reference_end
+
+            bin_index = min(peaks, key=lambda p: abs(pos - p))
+            _coverage = coverage
+            if abs(pos - bin_index) >= self.min_dist:
+                bin_index = 1
+                _coverage = secondary_coverage
+
+            bin_index *= multiplier
+            for j in aligned_pos:
+                if scale.start <= j < scale.end:
+                    _coverage[bin_index][j - scale.start] += 1
+
+        self._add_multi_coverage(scale, coverage, secondary_coverage)
+
+    def add_tagged_coverage(self, scale):
+        coverage = collections.defaultdict(collections.Counter)
+        secondary_coverage = collections.defaultdict(collections.Counter)
+
+        for read in self._get_reads(scale):
+            if not read.has_tag(self.tag):
+                _coverage = secondary_coverage
+                # continue
+            else:
+                _coverage = coverage
+
+                aligned_pos = read.get_reference_positions()
+                tag_value = read.get_tag(self.tag)
+                if self.tag_fn is not None:
+                    tag_value = self.tag_fn(tag_value)
+
+            for j in aligned_pos:
+                if scale.start <= j < scale.end:
+                    _coverage[tag_value][j - scale.start] += 1
+
+        self._add_multi_coverage(scale, coverage, secondary_coverage)
+
+    def _add_multi_coverage(self, scale, coverage, secondary_coverage=None):
+        """Takes a scale object and a dictionary of coverages and creates the
+        cumulative coverage plot"""
+
+        cumulative_coverage = np.zeros(scale.end - scale.start, dtype=int)
+        layers = []
+        secondary_layers = []
+
+
+        for _coverage, _layers in zip([coverage, secondary_coverage], [layers, secondary_layers]):
+            for i in sorted(_coverage):
+                x, y = zip(*sorted(_coverage[i].items()))  # is this better than just for (x,y in coverage[i].items()){cumulative_coverage[x] += y} ?
+                x = np.array(x)
+                y = np.array(y)
+                cumulative_coverage[x] += y
+
+                # find edges of coverage track
+                ydiff = np.diff(cumulative_coverage) != 0
+                ix = np.hstack([True, ydiff[:-1], True])
+
+                _layers.append((scale.start + ix.nonzero()[0], cumulative_coverage[ix]))
+
+        # reverse(layers) because the tracks overlap, need shortest in front
+        for i, (x, y) in enumerate(reversed(secondary_layers)):
+            color = SECONDARY_COLORS[(len(secondary_layers) - 1 - i) % len(SECONDARY_COLORS)]
+            self.add_series(x, y, color=color)
+        for i, (x, y) in enumerate(reversed(layers)):
+            color = BINNED_COLORS[(len(layers) - 1 - i) % len(BINNED_COLORS)]
+            self.add_series(x, y, color=color)
 
 
 
-
-
-
-
-
-
-
-
-
-                

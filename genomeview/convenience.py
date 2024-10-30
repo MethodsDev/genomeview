@@ -356,6 +356,8 @@ class Configuration:
                             with_bed_label = False,
                             coverage_bin_size = 0,
                             coverage_height = 100,
+                            coverage_tag = None,
+                            coverage_tag_fn = None,
                             priming_orientation = "3p",
                             vertical_layout_reads = False,
                             include_secondary = False,
@@ -466,6 +468,8 @@ class Configuration:
                 coverage_track.bin_size = coverage_bin_size
                 coverage_track.priming_orientation = priming_orientation
                 coverage_track.height = coverage_height
+                coverage_track.tag = coverage_tag
+                coverage_track.tag_fn = coverage_tag_fn
 
                 if fill_coverage:
                     coverage_track.fill_coverage = True
@@ -1244,6 +1248,12 @@ class Configuration:
                 coverage_track_series.priming_orientation = kwargs["priming_orientation"]
             if "coverage_bin_size" in kwargs:
                 coverage_track_series.bin_size = kwargs["coverage_bin_size"]
+            if "coverage_peak_min_distance" in kwargs:
+                coverage_track_series.min_dist = kwargs["coverage_peak_min_distance"]
+            if "coverage_tag" in kwargs:
+                coverage_track_series.tag = kwargs["coverage_tag"]
+            if "coverage_tag_fn" in kwargs:
+                coverage_track_series.tag_fn = kwargs["coverage_tag_fn"]
             coverage_track_series.layout(tmp_view.scale)
             bam_track_to_series[virtual_bam] = coverage_track_series.series
             max_coverage_dict[key] = coverage_track_series.max_y
