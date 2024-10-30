@@ -1248,6 +1248,8 @@ class Configuration:
                 coverage_track_series.priming_orientation = kwargs["priming_orientation"]
             if "coverage_bin_size" in kwargs:
                 coverage_track_series.bin_size = kwargs["coverage_bin_size"]
+            if "coverage_peak_min_distance" in kwargs:
+                coverage_track_series.min_dist = kwargs["coverage_peak_min_distance"]
             if "coverage_tag" in kwargs:
                 coverage_track_series.tag = kwargs["coverage_tag"]
             if "coverage_tag_fn" in kwargs:
