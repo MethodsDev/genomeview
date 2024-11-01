@@ -318,7 +318,7 @@ class Scale:
         assert end <= self.end
 
         if self._seq is None:
-            self._seq = self.source.get_seq(self.chrom, self.start, self.end, self.strand).upper()
+            self._seq = self.source.get_seq(self.chrom, self.start, self.end, "+").upper()
 
         cur_seq = self._seq[start-self.start:end-self.start]
 
