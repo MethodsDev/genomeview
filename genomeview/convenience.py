@@ -538,7 +538,7 @@ class Configuration:
             start = interval.begin
             end  = interval.end
         else:
-            raise("Neither an Interval or data structure has been provided.")
+            raise ValueError("Neither an Interval or data structure has been provided.")
 
         row = self.make_genomeview_row(start, end, chrom, strand, **kwargs)
         doc.elements.append(row)
