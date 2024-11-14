@@ -1087,7 +1087,7 @@ class Configuration:
     def plot_splice_junctions(self, 
                               feature,
                               view_width = 1600,
-                              as_widget = False, 
+                              as_widget = True, 
                               **kwargs):
         """
         Returns a Document where each known splice junction (according to isoforms) is displayed as a side by side exons view, one per row.
@@ -1103,7 +1103,7 @@ class Configuration:
         padding_perc : float, optional
             Padding around each exon in proportion of the size of the smallest exon. (Default: 0.1)
         as_widget : bool, optional
-            Control if the result is returned as a dropdown selection menu ipywidget where each tab is a splice junction. (Default: False)
+            Control if the result is returned as a dropdown selection menu ipywidget where each tab is a splice junction. (Default: True)
         **kwargs: 
             anything that can be passed to :meth:`make_genomeview_row()`
 
