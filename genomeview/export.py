@@ -34,16 +34,14 @@ def save(doc, output_path, output_format=None, requested_converter=None):
     if output_format is None:
         if output_path.lower().endswith(".pdf"):
             output_format = "pdf"
-            output_path += ".pdf"
         elif output_path.lower().endswith(".png"):
             output_format = "png"
-            output_path += ".png"
         elif output_path.lower().endswith(".svg"):
             output_format = "svg"
-            output_path += ".svg"
         else:
+            if not output_path.lower().endswith(".html"):
+                output_path += ".html"
             output_format = "html"
-            output_path += ".html"
 
     if output_format == "html":
         with open(output_path, "w") as f:
