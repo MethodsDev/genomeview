@@ -38,7 +38,7 @@ def save(doc, output_path, output_format=None, requested_converter=None):
         elif output_path.lower().endswith(".png"):
             output_format = "png"
             output_path += ".png"
-        elif output_path.lower().endwith(".svg"):
+        elif output_path.lower().endswith(".svg"):
             output_format = "svg"
             output_path += ".svg"
         else:
