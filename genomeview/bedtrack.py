@@ -316,5 +316,5 @@ class VirtualBEDTrack(BEDTrack):
         return
 
     def copy(self):
-        return VirtualBEDTrack(transcripts=self.transcripts, name=self.name)
+        return VirtualBEDTrack(transcripts=self.transcripts.copy(), name=self.name)
 

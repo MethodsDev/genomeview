@@ -1700,10 +1700,11 @@ class Configuration:
                 else:
                     if annotation_matching.match(classification, known_annotation):
                         if classification not in virtual_bed_dict:
-                            virtual_bed_dict[classification] = virtual_bed
+                            virtual_bed_dict[classification] = virtual_bed.copy()  # copy so that the appends don't affect other entries that started from this same bed
                         else:
-                            if virtual_bed.transcripts not in virtual_bed_dict[classification].transcripts:
-                                virtual_bed_dict[classification].transcripts.extend(virtual_bed.transcripts)
+                            for transcript in virtual_bed.transcripts:
+                                if transcript not in virtual_bed_dict[classification].transcripts:
+                                    virtual_bed_dict[classification].transcripts.append(transcript)
 
         return virtual_bed_dict
 
