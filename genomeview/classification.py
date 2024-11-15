@@ -105,6 +105,8 @@ class BAMtagClassification(Classification):
         self.tag = tag
 
     def get_classification(self, read, gene_id):
+        if not read.has_tag(tag):
+            return None
         return [get_read_tag(read, self.tag)]
 
 
