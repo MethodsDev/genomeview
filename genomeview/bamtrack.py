@@ -876,20 +876,21 @@ class BAMCoverageTrack(GraphTrack):
         for read in self._get_reads(scale):
             if not read.has_tag(self.tag):
                 _coverage = secondary_coverage
-                # continue
             else:
                 _coverage = coverage
 
-                aligned_pos = read.get_reference_positions()
                 tag_value = read.get_tag(self.tag)
                 if self.tag_fn is not None:
                     tag_value = self.tag_fn(tag_value)
+            
+            aligned_pos = read.get_reference_positions()
 
             for j in aligned_pos:
                 if scale.start <= j < scale.end:
                     _coverage[tag_value][j - scale.start] += 1
 
-        self._add_multi_coverage(scale, coverage, secondary_coverage)
+        if not (len(coverage) == 0 and len(secondary_coverage) == 0):
+            self._add_multi_coverage(scale, coverage, secondary_coverage)
 
     def _add_multi_coverage(self, scale, coverage, secondary_coverage=None):
         """Takes a scale object and a dictionary of coverages and creates the
