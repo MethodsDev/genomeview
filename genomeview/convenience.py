@@ -1700,7 +1700,8 @@ class Configuration:
                         if classification not in virtual_bed_dict:
                             virtual_bed_dict[classification] = virtual_bed
                         else:
-                            virtual_bed_dict[classification].transcripts.extend(virtual_bed.transcripts)
+                            if virtual_bed.transcripts not in virtual_bed_dict[classification].transcripts:
+                                virtual_bed_dict[classification].transcripts.extend(virtual_bed.transcripts)
 
         return virtual_bed_dict
 
