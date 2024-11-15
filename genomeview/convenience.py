@@ -1543,7 +1543,7 @@ class Configuration:
         tabs = []
         for feature, bams_dict in bams_dict_dict.items():
             #feature_name = str(feature)
-            print(feature)
+            # print(feature)
             # (feature_id, feature_type) = self.get_feature_info(feature_name)
             # interval = self.id_to_coordinates[feature_id]
             interval = self.get_interval_from_feature(feature)
@@ -1610,8 +1610,8 @@ class Configuration:
 
 
     def plot_by_features_as_tab(self,
-                                bams_dict,
                                 features_list,
+                                bams_dict,
                                 page_title = "Plot by feature", # and split by barcode whitelist category if provided
                                 cellbarcode_whitelist = None,
                                 cellbarcode_from = genomeview.StandardCellBarcode(),
@@ -1623,10 +1623,10 @@ class Configuration:
 
         Parameters
         ----------
-        bams_dict : dict
-            Dict of (virtual) BAMs to display the reads from.
         features_list : list
             List of features to generate views for, one per tab.
+        bams_dict : dict
+            Dict of (virtual) BAMs to display the reads from.
         page_title : str
             HTML page title
         cellbarcode_whitelist : dict of lists, or list, optional
