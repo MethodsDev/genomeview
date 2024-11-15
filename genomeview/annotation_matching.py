@@ -27,3 +27,17 @@ class IsoquantSubstringAnnotationMatching(AnnotationMatching):
         else:
             return False
 
+
+class TaggedBAMAnnotationMatching(AnnotationMatching):
+    """
+
+    """
+
+    def match(self, query_annotation, target_annotation):  # target = known, query = bam tag
+        queries = set(query_annotation.split(";"))
+        targets = set(target_annotation.split("|"))
+        intersect = queries & targets
+        if len(intersect) == 0:
+            return True
+        else:
+            return False
