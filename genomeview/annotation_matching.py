@@ -38,6 +38,6 @@ class TaggedBAMAnnotationMatching(AnnotationMatching):
         targets = set(target_annotation.split("|"))
         intersect = queries & targets
         if len(intersect) == 0:
-            return True
-        else:
             return False
+        else:
+            return True
