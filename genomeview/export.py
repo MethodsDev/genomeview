@@ -59,7 +59,7 @@ def save(doc, output_path, output_format=None, requested_converter=None):
 
         if (requested_converter is None or requested_converter == "resvg") and _checkRESVGConvert():
 
-            root_svg = ET.fromstring(doc._repr_svg_())
+            root_svg = ET.fromstring(doc._repr_svg__())
             svg_splitter = SvgSplitter(root_svg)
             svg_splitter.split_svg(root_svg, max_height = 10000)
             for i, split in enumerate(svg_splitter.get_splits()):
@@ -68,7 +68,7 @@ def save(doc, output_path, output_format=None, requested_converter=None):
                 with open(output_path_prefix + filename, 'wb') as outf:
                     outf.write(split_png)
 
-        elif (requested_converted is None or requested_converter == "librsvg"):
+        elif (requested_converter is None or requested_converter == "librsvg"):
             # render to a temporary file then convert to PDF or PNG
             with tempfile.TemporaryDirectory() as outdir:
                 temp_svg_path = os.path.join(outdir, "temp.svg")

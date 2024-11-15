@@ -74,7 +74,7 @@ class Document:
         yield self.svg_footer
 
     def _repr_html_(self):
-        #return widgets.HTML(self._repr_svg_())
+        #return widgets.HTML(self._repr_svg__())
         svg_content = self._repr_svg__()
         custom_style = """
         <style>
