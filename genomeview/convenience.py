@@ -1436,7 +1436,9 @@ class Configuration:
         if custom_bed_dict is not None:
             all_bed_entries = genomeview.VirtualBEDTrack()
             for virtual_bed in custom_bed_dict.values():
-                all_bed_entries.transcripts.extend(virtual_bed.transcripts)
+                for transcript in virtual_bed.transcripts:
+                    if transcript not in all_bed_entries.transcripts:
+                        all_bed_entries.transcripts.append(transcript)
             bed_config.update_bed(all_bed_entries)
         else:
             bed_config.update_bed(self.bed_annotation)
@@ -1747,7 +1749,7 @@ class Configuration:
         virtual_bams_dict = {}
         for bam_name, bam_file in bams_dict.items():
             virtual_bams_dict.update(genomeview.split_bam_by_classification(bam_file = bam_file,
-                                                                            name_prefix = bam_name,
+                                                                            name_prefix = "",
                                                                             feature_id = feature_id,
                                                                             interval = interval,
                                                                             classification_from = classification_from,
