@@ -6,6 +6,7 @@ import pysam
 import inspect
 import ipywidgets as widgets
 import re
+import time
 from functools import partial
 
 from intervaltree import Interval, IntervalTree
@@ -1400,6 +1401,7 @@ class Configuration:
                              bams_dict,
                              interval,
                              tab_name,
+                             tab_id,
                              custom_bed_dict = None,
                              with_bed = True,
                              with_coverage = True,
@@ -1456,7 +1458,7 @@ class Configuration:
         for key, bam in bams_dict.items():
             if bam is None:
                 continue
-            unique_id = f"{tab_name}_{key}"
+            # unique_id = f"{tab_id}_{key}"
 
             static_svg = ""
             resizable_svg = ""
@@ -1498,14 +1500,15 @@ class Configuration:
                                                 )._repr_svg__() + "</br>"
 
             tab_sections.append({
-                'unique_id': unique_id,
-                # 'name': f"{tab_name}_{key}",
+                'unique_id': f"{tab_id}_{key}",
+                'name': f"{tab_name}_{key}",
                 'static_svg': static_svg,
                 'resizable_svg': resizable_svg,
                 'expended': expended
             })
 
         return {'tab_name': tab_name,
+                'tab_id': tab_id,
                 'shared_static_svg': shared_static_svg,
                 'tab_sections': tab_sections}
 
@@ -1554,9 +1557,13 @@ class Configuration:
             if custom_bed_dict_dict is not None and feature in custom_bed_dict_dict:
                 custom_bed_dict = custom_bed_dict_dict[feature]
 
+            tab_name = tab_title_fn(feature)
+            tab_id = tab_name + "_" + str(time.time())
+
             tabs.append(self.organize_tab_section(bams_dict = bams_dict,
                                                   interval = interval, 
-                                                  tab_name = tab_title_fn(feature),
+                                                  tab_name = tab_name,
+                                                  tab_id = tab_id,
                                                   custom_bed_dict = custom_bed_dict,
                                                   **kwargs))
 
@@ -1595,15 +1602,19 @@ class Configuration:
         if tab_title_fn is None:  # workaround because can't set a self.method as default parameter
             tab_title_fn = lambda x: x
 
+
         tabs = []
         for classification, bams_dict in bams_dict_dict.items():
             custom_bed_dict = None
             if custom_bed_dict_dict is not None and classification in custom_bed_dict_dict:
                 custom_bed_dict = custom_bed_dict_dict[classification]
 
+            tab_name = tab_title_fn(classification)
+            tab_id = tab_name + "_" + str(time.time())
             tabs.append(self.organize_tab_section(bams_dict = bams_dict,
                                                   interval = interval, 
-                                                  tab_name = tab_title_fn(classification),
+                                                  tab_name = tab_name,
+                                                  tab_id = tab_id,
                                                   custom_bed_dict = custom_bed_dict,
                                                   **kwargs))
 
@@ -1750,7 +1761,7 @@ class Configuration:
         virtual_bams_dict = {}
         for bam_name, bam_file in bams_dict.items():
             virtual_bams_dict.update(genomeview.split_bam_by_classification(bam_file = bam_file,
-                                                                            name_prefix = "",
+                                                                            name_prefix = bam_name,
                                                                             feature_id = feature_id,
                                                                             interval = interval,
                                                                             classification_from = classification_from,

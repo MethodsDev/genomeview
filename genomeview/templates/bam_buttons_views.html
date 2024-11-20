@@ -1,5 +1,5 @@
 {% for tab in tab.tab_sections %}
-    <button type="button" class="collapsible {% if tab.expended %}active{% endif %}" data-target="{{ tab.unique_id }}">{{ tab.unique_id }}</button>
+    <button type="button" class="collapsible {% if tab.expended %}active{% endif %}" data-target="{{ tab.unique_id }}">{{ tab.name }}</button>
 {% endfor %}
     <br/>
 
