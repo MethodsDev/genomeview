@@ -482,12 +482,10 @@ class Configuration:
                         coverage_track.max_y = coverage_track_max_y
                 gene_view.add_track(coverage_track)
             if with_reads:
+                reads_label = ""
                 if add_reads_label:
                     if add_reads_label == "auto":
-                        add_reads_label = key
-                else:
-                    add_reads_label = ""
-
+                        reads_label = key
 
                 if tighter_track:
                     bam_track = TighterSingleEndBAMTrack(value, name=add_reads_label, **opener_kwargs)
