@@ -876,6 +876,7 @@ class BAMCoverageTrack(GraphTrack):
         for read in self._get_reads(scale):
             if not read.has_tag(self.tag):
                 _coverage = secondary_coverage
+                tag_value = "unclassified"
             else:
                 _coverage = coverage
 
