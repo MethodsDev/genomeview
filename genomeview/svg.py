@@ -16,6 +16,7 @@ def _addOptions(kwdargs, defaults=None):
 class SVG(GraphicsBackend):
     _filter_id = 0
 
+    # def text(self, x, y, text, size=10, anchor="middle", family="DejaVu Sans", **kwdargs):
     def text(self, x, y, text, size=10, anchor="middle", family="Source Sans Pro", **kwdargs):
         defaults = {}
         assert anchor in ["start", "middle", "end"]
