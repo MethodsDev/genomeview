@@ -9,8 +9,48 @@ import math
 import copy
 from intervaltree import Interval, IntervalTree
 from ipywidgets.embed import embed_minimal_html, dependency_state
+import cairosvg
 
 RESVG = None
+
+
+def split_svg_header_to_matrix(svg_header, x_width, y_height):
+    # Extract width and height using regex
+    width_match = re.search(r'width="(\d+)"', svg_header)
+    height_match = re.search(r'height="(\d+)"', svg_header)
+
+    if not width_match or not height_match:
+        raise ValueError("Invalid SVG header: width or height not found.")
+
+    original_width = int(width_match.group(1))
+    original_height = int(height_match.group(1))
+
+    # Split into a 2D matrix of headers
+    headers_matrix = []
+    x_start = 0
+    while x_start < original_width:
+        col = []
+        y_start = 0
+        while y_start < original_height:
+            slice_width = min(x_width, original_width - x_start)
+            slice_height = min(y_height, original_height - y_start)
+            view_box = f'viewBox="{x_start} {y_start} {slice_width} {slice_height}"'
+            new_header = re.sub(
+                r'(width=".*?")',
+                f'width="{slice_width}"',
+                re.sub(
+                    r'(height=".*?")',
+                    f'height="{slice_height}" {view_box}',
+                    svg_header
+                )
+            )
+            col.append(new_header)
+            y_start += y_height
+        headers_matrix.append(col)
+        x_start += x_width
+
+    return headers_matrix
+
 
 def save(doc, output_path, output_format=None, requested_converter=None):
     """
@@ -57,33 +97,37 @@ def save(doc, output_path, output_format=None, requested_converter=None):
         else:
             output_path_prefix = output_path
 
-        if (requested_converter is None or requested_converter == "resvg") and _checkRESVGConvert():
-
-            root_svg = ET.fromstring(doc._repr_svg__())
-            svg_splitter = SvgSplitter(root_svg)
-            svg_splitter.split_svg(root_svg, max_height = 10000)
-            for i, split in enumerate(svg_splitter.get_splits()):
-                split_png = _convertSVG_resvg_stdio(ET.tostring(split.getroot(), encoding='utf-8'))
-                filename = f"_p{i+1:02}.png"  # Zero-pad the number, adjust i+1 if numbering should start from 01
-                with open(output_path_prefix + filename, 'wb') as outf:
-                    outf.write(split_png)
-
+        if requested_converter == "cairosvg" or requested_converter is None:  # add a check that cairosvg available
+            requested_converter = "cairosvg"
+        elif (requested_converter is None or requested_converter == "resvg") and _checkRESVGConvert():
+            requested_converter = "resvg"
         elif (requested_converter is None or requested_converter == "librsvg"):
-            # render to a temporary file then convert to PDF or PNG
-            with tempfile.TemporaryDirectory() as outdir:
-                temp_svg_path = os.path.join(outdir, "temp.svg")
-                with open(temp_svg_path, "w") as outf:
-                    render_to_file(doc, outf)
-    
-                tree = ET.parse(temp_svg_path)
-                root_svg = tree.getroot()
-                svg_splitter = SvgSplitter(root_svg)
-                svg_splitter.split_svg(root_svg, max_height = 10000)
-                svg_slices = svg_splitter.write_splits(prefix=os.path.join(outdir, "temp_"))
-    
-                for i, split in enumerate(svg_splitter.get_splits()):
-                    filename = f"_p{i+1:02}.png"
-                    convert_svg(split, output_path_prefix + filename, output_format, requested_converter="librsvg")
+            requested_converter = "librsvg"
+        else:
+            raise RuntimeError("No SVG to PNG converter provided and available.")
+
+        full_svg = doc._repr_svg__()
+        svg_header, _, svg_body = full_svg.partition("\n")
+        headers_matrix = split_svg_header_to_matrix(svg_header, 10000, 10000)
+
+        for x_idx, col in enumerate(headers_matrix):
+            for y_idx, header in enumerate(col):
+                filename = f"_x{x_idx:02}_y{y_idx:02}.png"  # Zero-pad the number, adjust i+1 if numbering should start from 01
+
+                if requested_converter == "resvg":
+                    split_png = _convertSVG_resvg_stdio(header + "\n" + svg_body)
+                    with open(output_path_prefix + filename, 'wb') as outf:
+                        outf.write(split_png)
+                else:  # methods that require to save to file for convertion
+                    with tempfile.TemporaryDirectory() as outdir:
+                        temp_svg_path = os.path.join(outdir, "temp.svg")
+                        with open(temp_svg_path, "w") as outf:
+                           outf.write(header + "\n" + svg_body)
+
+                        if requested_converter == "librsvg":
+                            convert_svg(temp_svg_path, output_path_prefix + filename, output_format, requested_converter="librsvg")
+                        elif requested_converter == "cairosvg":
+                            cairosvg.svg2png(url=temp_svg_path, write_to=output_path_prefix + filename)
 
     else: # pdf
         # do something
@@ -129,7 +173,6 @@ class SvgSplitter:
     def make_template_svg_split(self, root):
         return ET.Element('svg', {
                 'version': root.attrib['version'],
-                'baseProfile': root.attrib['baseProfile'],
                 'width': root.attrib['width'],
                 'height': "0",
                 'shape-rendering': "crispEdges"
@@ -646,14 +689,23 @@ def _convertSVG_inkscape(inpath, outpath, output_format):
 
 
 def _convertSVG_rsvg_convert(inpath, outpath, output_format):
-    options = ""
+    options = [""]
     output_format = output_format.lower()
     if output_format == "png":
-        options = "-a --background-color white"
+        options = ["-a", "--background-color=white"]
 
     try:
-        subprocess.check_call("rsvg-convert -f {} {} -o {} {}".format(output_format, options, outpath, inpath), shell=True)
+        cmd = ["rsvg-convert", "-f", output_format] + options + ["-o", outpath, inpath]
+        # subprocess.check_call("rsvg-convert -f {} {} -o {} {}".format(output_format, options, outpath, inpath), shell=True)
+        process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        outdata, errdata = process.communicate()
+        if process.returncode != 0:
+            print(f"Error: {errdata.decode('utf-8')}")
+            return None
+
+        return outdata
+
     except subprocess.CalledProcessError as e:
         print("EXPORT ERROR:", str(e))
 
-    return open(outpath, "rb").read()
+    # return open(outpath, "rb").read()
