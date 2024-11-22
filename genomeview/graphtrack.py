@@ -107,24 +107,76 @@ class GraphTrack(Track):
                         **{"stroke-width":1, "stroke":series.color, "stroke-linecap":"square", "shape-rendering":"geometricPrecision"})
             else:
                 current_min_y = 0  # keeping track of min because higher coverage is lower y value (closer to top)
+
+                # need to add checks that series.x[:somevalue] is not < scale.start or continue in loop
+                #      but keep track of last series.y for where to start
+                # need to add checks that series.x[somevalue:] is not > scale.end or break in loop
+                #      and then loop path back to start
+
                 full_path = "<path d=\"M "
-                x1 = self.scale.topixels(series.x[0]) + renderer.x
-                y1 = self.ytopixels(0) + renderer.y
-                full_path += str(x1) + " " + str(y1)
+                started = False
+                prev_y = 0
+                # y1 = self.ytopixels(0) + renderer.y  # in case of empty coverage, so that the "past scale end" check doesn't error
 
-                for i in range(len(series.x)):
-                    if numpy.isnan(series.x[i]) or numpy.isnan(series.y[i]):
+                for (x, y) in zip(series.x, series.y):
+                    if x < self.scale.start:
+                        prev_y = y
                         continue
-                    x1 = self.scale.topixels(series.x[i])+ renderer.x
-                    full_path += " L " + str(x1) + " " + str(y1)
 
-                    y1 = self.ytopixels(series.y[i]) + renderer.y
+                    if x > self.scale.end:
+                        if started:
+                            # if coverage wasn't 0 before going out of bound
+                            if y1 != self.ytopixels(0) + renderer.y:
+                                x1 = self.scale.topixels(self.scale.end) + renderer.x
+                                full_path += " L " + str(x1) + " " + str(y1)
+                                current_min_y = min(current_min_y, y1)
+                                # y1 = self.ytopixels(0) + renderer.y
+                                # full_path += " L " + str(x1) + " " + str(y1)
+                            # else:
+                            y1 = self.ytopixels(0) + renderer.y
+                            full_path += " L " + str(x1) + " " + str(y1)
+                        break
+
+                    if not started:
+                        # starting anchor points at (0, 0) and (0, prev_y)
+                        if prev_y > 0:
+                            x1 = self.scale.topixels(self.scale.start) + renderer.x
+                            y1 = self.ytopixels(0) + renderer.y
+                            full_path += str(x1) + " " + str(y1)
+
+                            y1 = self.ytopixels(prev_y) + renderer.y
+                            full_path += " L " + str(x1) + " " + str(y1)
+
+                            # x1 = self.scale.topixels(x) + renderer.x
+                            # full_path += " L " + str(x1) + " " + str(y1)
+
+                        # starting anchor point at (x, 0)
+                        else:
+                            y1 = self.ytopixels(0) + renderer.y
+                            
+                            # x1 = self.scale.topixels(x) + renderer.x
+                            # full_path += " L " + str(x1) + " " + str(y1)
+
+                        # y1 = self.ytopixels(y) + renderer.y
+                        # full_path += " L " + str(x1) + " " + str(y1)
+                        current_min_y = min(current_min_y, y1)
+                        started = True
+
+                    # else:
+                    x1 = self.scale.topixels(x) + renderer.x
+                    if len(full_path) > 11:
+                        full_path += " L " + str(x1) + " " + str(y1)
+                    else:
+                        full_path += str(x1) + " " + str(y1)
+
+                    y1 = self.ytopixels(y) + renderer.y
+                    full_path += " L " + str(x1) + " " + str(y1)
                     current_min_y = min(current_min_y, y1)
-                    full_path += " L " + str(x1) + " " + str(y1)
 
-                y1 = self.ytopixels(0) + renderer.y
-                full_path += " L " + str(x1) + " " + str(y1) + "\""
-                full_path += " xcenter=\"" + str((self.ytopixels(0) + current_min_y)/2) +  "\" stroke=\"" + series.color + "\" fill=\"" + series.color + "\" stroke_width=\"1\"></path>"
+                if len(full_path) > 11:
+                    full_path +=  "\" xcenter=\"" + str((self.ytopixels(0) + current_min_y)/2) +  "\" stroke=\"" + series.color + "\" fill=\"" + series.color + "\" stroke_width=\"1\"></path>"
+                else:
+                    full_path = ""
 
                 yield full_path
 
